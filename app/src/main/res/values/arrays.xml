@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="MuscleTypes">
+        <item>Left Trapezius</item>
+        <item>Right Trapezius</item>
+    </string-array>
+    <string-array name="MuscleValues">
+        <item>Left Trapezius</item>
+        <item>Right Trapezius</item>
+    </string-array>
+</resources>
