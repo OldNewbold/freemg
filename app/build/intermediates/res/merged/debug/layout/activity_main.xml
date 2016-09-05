@@ -15,21 +15,12 @@
 
     <fragment
         android:layout_width="match_parent"
-        android:layout_height="350dp"
+        android:layout_height="match_parent"
         android:name="com.example.weewilfred.freemg.PieChartFragment"
         android:id="@+id/PieChartFragment"
         tools:layout="@layout/pie_chart_fragment"
-        android:layout_centerVertical="true"
-        android:layout_alignParentStart="true" />
-
-    <Button
-        android:layout_width="175dp"
-        android:layout_height="wrap_content"
-        android:text="@string/start_sensor"
-        android:id="@+id/startSensorButton"
-        android:layout_alignParentBottom="true"
-        android:layout_centerHorizontal="true"
-        android:background="@color/button_material_light"
-        android:onClick="onSensorStartClick"/>
+        android:layout_alignParentStart="true"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentBottom="true" />
 
 </RelativeLayout>

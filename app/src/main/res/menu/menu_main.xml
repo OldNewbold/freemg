@@ -7,8 +7,4 @@
         android:orderInCategory="100"
         android:title="@string/action_settings"
         app:showAsAction="never" />
-    <item
-        android:id="@+id/alarm_type"
-        android:title="@string/alarm_type"
-        app:showAsAction="never"/>
 </menu>

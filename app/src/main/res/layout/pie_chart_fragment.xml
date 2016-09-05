@@ -8,4 +8,14 @@
         android:layout_height="match_parent"
         android:layout_centerHorizontal="true"
     />
+
+    <Button
+        android:layout_width="175dp"
+        android:layout_height="wrap_content"
+        android:text="@string/start_sensor"
+        android:id="@+id/startButton"
+        android:background="@color/button_material_light"
+        android:onClick="onClick"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true" />
 </RelativeLayout>

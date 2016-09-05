@@ -9,13 +9,21 @@ import android.support.v4.app.Fragment;
 import android.text.SpannableString;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.RelativeSizeSpan;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.RelativeLayout;
-import android.view.MotionEvent;
-
 import java.util.ArrayList;
+import android.os.IBinder;
+import android.content.Context;
+import android.content.Intent;
+import android.content.ComponentName;
+import android.content.ServiceConnection;
+import android.widget.TextView;
+
+import com.example.weewilfred.freemg.SignalProcessService.MyLocalBinder;
 
 import com.github.mikephil.charting.charts.PieChart;
 import com.github.mikephil.charting.data.PieData;
@@ -25,17 +33,25 @@ import com.github.mikephil.charting.utils.ColorTemplate;
 
 
 
-public class PieChartFragment extends Fragment {
+public class PieChartFragment extends Fragment implements View.OnClickListener {
+
+    private static final String TAG = "PieChartFragment";
+    SignalProcessService pieService;
+    boolean isBound = false;
+    private static float[] emg = new float[5000];
+    Button b;
+
+
 
     public PieChartFragment() {
     }
 
-    private RelativeLayout pieChartLayout;
     private OnFragmentInteractionListener mListener;
     private PieChart mChart;
 
 
-    @Override   //onCreateView is where we tell the class what design or XML we will be using
+
+    @Override
     public View onCreateView(LayoutInflater inflater,@Nullable ViewGroup container,
                             @Nullable Bundle savedInstanceState) {
 
@@ -62,7 +78,24 @@ public class PieChartFragment extends Fragment {
 
         mChart.setData(generatePieData());
 
+        //Set up for StartSensor Button
+        b = (Button) pieChartView.findViewById(R.id.startButton);
+        b.setOnClickListener(this);
+        b.setTag(1);
+
+        doBindService();
         return pieChartView;
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        refresh();
+    }
+
+    private void refresh() {
+        //TODO: somethings to refresh the display ie check sensor connection, graphical indicators
+        // emg = pieService.processEMG();
     }
 
     public interface OnFragmentInteractionListener {
@@ -76,11 +109,28 @@ public class PieChartFragment extends Fragment {
         s.setSpan(new ForegroundColorSpan(Color.BLACK), 8, s.length(),0);
         return s;
     }
-    int getSensorData(){
 
+    public void getSensorData(){
         //TODO: use this function to receive data from the sensor and send it to generate pie data
+        emg = pieService.processEMG();
+    }
 
-        return (0);
+    @Override
+    public void onClick(View v) {
+        switch (v.getId()) {
+            case R.id.startButton:
+                final int status =(Integer) v.getTag();
+                if(status == 1) {
+                    getSensorData();
+                    b.setText("Stop Sensor", TextView.BufferType.EDITABLE);
+                    v.setTag(0); //pause
+                } else {
+                    b.setText("Start Sensor", TextView.BufferType.EDITABLE);
+                    v.setTag(1); //pause
+                }
+                Log.d(TAG, "getSensorData has been called to run");
+                break;
+        }
     }
 
     //TODO: Data from EMG sensor is sent to this function for processing and animating
@@ -90,9 +140,9 @@ public class PieChartFragment extends Fragment {
         //int count = 1;
 
         ArrayList<PieEntry> entries1 = new ArrayList<PieEntry>();
-
+        //getSensorData();
         //Populate the arraylist either in a loop or individually
-        entries1.add(new PieEntry((float) ((Math.random() * 60) + 40), "Relaxation "));
+        entries1.add(new PieEntry((emg[1]), "Relaxation "));
         entries1.add(new PieEntry((float) ((Math.random() * 60)+ 40), "Tension "));
 
 
@@ -108,4 +158,41 @@ public class PieChartFragment extends Fragment {
 
         return d;
     }
+
+    private ServiceConnection pieConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName componentName, IBinder service) {
+            SignalProcessService.MyLocalBinder Binder = (SignalProcessService.MyLocalBinder) service;
+            pieService = Binder.getService();
+            isBound = true;
+            Log.d(TAG, "Service is bound");
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName componentName) {
+            isBound = false;
+        }
+    };
+
+    void doBindService() {
+        //Bind service to application then start the service
+        Intent i = new Intent(getActivity().getApplicationContext(), SignalProcessService.class);
+        getActivity().getApplicationContext().bindService(i, pieConnection, Context.BIND_AUTO_CREATE );
+        Log.d(TAG, "Attempted service bind" );
+    }
+
+    void doUnbindService() {
+        if (isBound) {
+            // Detach our existing connection.
+            getActivity().getApplicationContext().unbindService(pieConnection);
+            isBound = false;
+        }
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        doUnbindService();
+    }
+
 }
