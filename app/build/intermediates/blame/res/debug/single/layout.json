@@ -100,12 +100,12 @@
         "source": "C:\\Users\\Wee Wilfred\\Documents\\AndroidProjects\\Freemg\\app\\build\\intermediates\\exploded-aar\\com.android.support\\appcompat-v7\\24.1.1\\res\\layout\\abc_action_bar_title_item.xml"
     },
     {
-        "merged": "C:\\Users\\Wee Wilfred\\Documents\\AndroidProjects\\Freemg\\app\\build\\intermediates\\res\\merged\\debug\\layout\\abc_select_dialog_material.xml",
-        "source": "C:\\Users\\Wee Wilfred\\Documents\\AndroidProjects\\Freemg\\app\\build\\intermediates\\exploded-aar\\com.android.support\\appcompat-v7\\24.1.1\\res\\layout\\abc_select_dialog_material.xml"
-    },
-    {
         "merged": "C:\\Users\\Wee Wilfred\\Documents\\AndroidProjects\\Freemg\\app\\build\\intermediates\\res\\merged\\debug\\layout\\notification_template_lines.xml",
         "source": "C:\\Users\\Wee Wilfred\\Documents\\AndroidProjects\\Freemg\\app\\build\\intermediates\\exploded-aar\\com.android.support\\appcompat-v7\\24.1.1\\res\\layout\\notification_template_lines.xml"
+    },
+    {
+        "merged": "C:\\Users\\Wee Wilfred\\Documents\\AndroidProjects\\Freemg\\app\\build\\intermediates\\res\\merged\\debug\\layout\\abc_select_dialog_material.xml",
+        "source": "C:\\Users\\Wee Wilfred\\Documents\\AndroidProjects\\Freemg\\app\\build\\intermediates\\exploded-aar\\com.android.support\\appcompat-v7\\24.1.1\\res\\layout\\abc_select_dialog_material.xml"
     },
     {
         "merged": "C:\\Users\\Wee Wilfred\\Documents\\AndroidProjects\\Freemg\\app\\build\\intermediates\\res\\merged\\debug\\layout\\select_dialog_singlechoice_material.xml",

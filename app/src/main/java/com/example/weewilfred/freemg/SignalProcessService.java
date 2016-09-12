@@ -3,20 +3,16 @@ package com.example.weewilfred.freemg;
 import android.app.Service;
 import android.content.Intent;
 import android.os.Binder;
-import android.os.Handler;
 import android.os.IBinder;
-import android.os.Message;
 import android.util.Log;
-import android.widget.Toast;
 
 import java.io.BufferedReader;
-import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.TimerTask;
 
 import static java.lang.Float.parseFloat;
 
@@ -35,91 +31,108 @@ public class SignalProcessService extends Service {
     private final IBinder SignalProcessBinder = new MyLocalBinder();        //Object to bind the process to the service we will create the MyLocalBinder method
     EnvelopeDetector E =  new EnvelopeDetector(1000);                       //Create the envelope filter coefficients on first run
     int readCounter = 0;
-    float[] emg = new float[5000];
+    static float[] emg = new float[5000];
+    static float tension = 0, normalizedTension = 0;
+    int getTime = 1;                                                        //How many seconds of data should we process at a time?
 
     public SignalProcessService(){
         //Constructor to call this service from other classes
     }
 
-    /********* When service is started, this process is executed that collects 5000 samples from the dummy data file and processes them ********/
-    public float[] processEMG() {
+    /********* When service is started, this process is executed that collects 5000 samples from the dummy data file and outputs  ********/
+    public float[] processEMG(){
+        Log.i(TAG, "Signal Process Service is doing something");
         Runnable r = new Runnable() {
             @Override
             public void run() {
                 //Give the service 5 seconds to parse a bunch of EMG data
-                long futureTime = System.currentTimeMillis() + 5000;
-                while (System.currentTimeMillis() < futureTime){
-                    try{
-                        toastHandler.sendEmptyMessage(0);
-                        Log.i(TAG, "Signal Process Service is doing something");
-                        wait(futureTime - System.currentTimeMillis());
-                        String[] EMGdata = readFile("GeorgesLeftTrapTest.txt");
-                         for (int i = 0; i< Array.getLength(EMGdata); i++){
-                                //Convert the strings into floats for processing
-                             emg[i] = parseFloat(EMGdata[i]);
-                         }
-                        emg = E.process(emg);  //Enveloped signal
-                        //TODO: Output current emg intensity that can scale a hex color gradient
-                        //TODO: Use envelope function to output relaxation out of 100
-                        float[] tension = tensionModel(emg);
+                //long futureTime = System.currentTimeMillis() + getTime*1000;
+                //while (System.currentTimeMillis() < futureTime){
+                    try {
+                        String[] EMGdata = readFile();
+                        for (int i = 0; i< Array.getLength(EMGdata); i++){
+                             emg[i] = parseFloat(EMGdata[i]); //Convert the strings into floats for processing
+                        }
 
-                    } catch(Exception e) {
+                        emg = E.process(emg);  //Enveloped signal
+                        //TODO: Output array of current emg intensity that can scale a hex color gradient
+                        //TODO: Output relaxation out of 100
+                        //wait(futureTime - System.currentTimeMillis());
+                    }catch(Exception e) {
                         Log.i(TAG, "Reading EMG data failed or signal processing");
                     }
-
                 }
-            }
         };
-        Thread SignalProcessThread = new Thread();
+        Thread SignalProcessThread = new Thread(r);
         SignalProcessThread.start();
         return emg;
     }
 
-    private final Handler toastHandler = new Handler()
-    {
-        @Override
-        public void handleMessage(Message msg)
-        {
-            Toast.makeText(getApplicationContext(), "test", Toast.LENGTH_SHORT).show();
-        }
-    };
+    public float integrateFunction(){
 
+        Runnable r = new Runnable() {
+            @Override
+            public void run() {
+                float Sp = (float) .01;
+                float Ts = (float) .001;
+                float Ti = (float) 20;
+                int Kp = 10;
+                float[] e = new float[5000];
+                float[] I =  new float[5000];
+                float Iprevious = 0;
+                float Itotal = 0;
 
+                for (int i = 0; i < Array.getLength(emg); i++) {
 
-    /************************************* Service methods for creation, destruction, resuming and pausing etc ****************************/
-    public class MyLocalBinder extends Binder {
-        //Whenever you want to bind a client to a service, we need to make an object which extends the binder class
-        //The only thing we want this class to be capable of is returning a reference to its superclass aka SignalProcessService
-        //Then our old friend pieChart will be able to contact this class to get the details of this hot new service
-        SignalProcessService getService(){
-            return SignalProcessService.this;
-        }
+                   /* if (emg[i] < 0){        //Rectify
+                        emg[i] = -emg[i];
+                    }*/
+
+                    if (emg[i] > .03) {
+                        e[i] = Sp;
+                    } else {
+                        e[i] = emg[i] - Sp;
+                    }
+                    I[i] = Iprevious + (Kp * e[i] * Ts / Ti);
+                    if (I[i] < 0)
+                        I[i] = 0;
+                    else if (I[i] > 0.15){
+                        I[i] = (float) 0.15;
+                    }
+                    Iprevious = I[i];
+                    Itotal += I[i];
+                }
+                normalizedTension = calcTension(Itotal);
+            }
+        };
+
+        Thread IntegrateSignalThread = new Thread(r);
+        IntegrateSignalThread.start();
+
+        return normalizedTension;
     }
 
-    @Override
-    public IBinder onBind(Intent intent) {
-        //Handle what happens when this service is bound to a client,
-        return SignalProcessBinder;
-
-    }
-    @Override
-    public void onDestroy(){
-        Log.i(TAG, "onDestroy method called");
+    float calcTension(float muscleActivationLevel) {
+        tension = (float)(.015 * 5);
+        Log.i(TAG, "Muscle Activation" + muscleActivationLevel + " Tension estimate" + tension);
+        tension = ((muscleActivationLevel - tension)/tension)*100;
+        Log.i(TAG, "Normalized Tension " + tension);
+        return tension;
     }
 
-    /*********************************** DSP Processing functions and extra necessary functions below here *****************************/
-    String[] readFile(String filename) throws IOException
+    /* File reading function to read the EMG dummy data */
+    String[] readFile() throws IOException
     {
         List<String> mStrings = new ArrayList<>();
 
         BufferedReader reader = null;
         try
         {
-            reader = new BufferedReader( new InputStreamReader( new FileInputStream(filename)));
+            InputStream is = this.getResources().openRawResource(R.raw.lefttrap);
+            reader = new BufferedReader( new InputStreamReader(is));
             String str = reader.readLine();
-            //Read 100 Dummy Data Entries
             while(str != null) {
-                for (int i = 0 + readCounter * 5000; i < (readCounter * 5000 + 4999); i++) {
+                for (int i = ( readCounter * 1000); i < (readCounter * getTime*1000 + getTime*1000); i++) {
                     mStrings.add(str);
                     str = reader.readLine();
                 }
@@ -137,82 +150,27 @@ public class SignalProcessService extends Service {
         return mStrings.toArray(new String[mStrings.size()]);
     }
 
-    public float[] tensionModel(float[] EMG){
-
-        float Sp = (float) .01;
-        float Ts = (float) .001;
-        float Ti = (float) 20;
-        int Kp = 1;
-        float[] e = new float[5000];
-        float[] I =  new float[5000];
-        float Iprevious = 0;
-        float Itotal = 0;
-
-        for (int i = 0; i < Array.getLength(EMG); i++) {
-
-            if (EMG[i] < 0){        //Rectify
-                EMG[i] = -EMG[i];
-            }
-
-
-            if (EMG[i] > .03) {
-                e[i] = Sp;
-            } else {
-                e[i] = EMG[i] - Sp;
-            }
-            I[i] = Iprevious + (Kp * e[i] * Ts / Ti);
-            if (I[i] < 0)
-                I[i] = 0;
-            else if (I[i] > 0.15){
-                I[i] = (float) 0.15;
-            }
-            Iprevious = I[i];
-            Itotal += I[i];
-        }
-        float tension = .17 * 5000 /
-
-        return I;
-    }
-
-    void membership(int x, float mu[]) {
-        float c = (float) .17 / 8;  //Set the max tension level fuzzily
-        float delta = c;
-        float M[] = {c, 2 * c, 3 * c, 4 * c, 5 * c, 6 * c, 7 * c};
-
-        for (int i = 0; i < 7; i++) {
-            if (i == 0) {
-                if (x <= M[i]) {
-                    mu[i] = 1;
-                } else if (x >= M[i] && x <= M[i] + delta) {
-                    mu[i] = 1 - ((x - M[i]) / delta);
-                } else {
-                    mu[i] = 0;
-                }
-            }
-            if (i > 0 && i < 6) {
-                if (x >= (M[i] - delta) && x <= M[i]) {
-                    mu[i] = (x - (M[i] - delta)) / delta;
-                } else if (x >= M[i] && x <= M[i] + delta) {
-                    mu[i] = 1 - ((x - M[i]) / delta);
-                } else {
-                    mu[i] = 0;
-                }
-            }
-            if (i == 6) {
-                if (x >= (M[i] - delta) && x <= M[i]) {
-                    mu[i] = (x - (M[i] - delta)) / delta;
-                } else if (x >= M[i]) {
-                    mu[i] = 1;
-                } else {
-                    mu[i] = 0;
-                }
-            }
+    /************************************* Service methods for creation, destruction, resuming and pausing etc ****************************/
+    public class MyLocalBinder extends Binder {
+        //Whenever you want to bind a client to a service, we need to make an object which extends the binder class
+        //The only thing we want this class to be capable of is returning a reference to its superclass aka SignalProcessService
+        //Then our old friend pieChart will be able to contact this class to get the details of this hot new service
+        SignalProcessService getService(){
+            return SignalProcessService.this;
         }
     }
 
+    @Override
+    public IBinder onBind(Intent intent) {
+        //Handle what happens when this service is bound to a client,
+        return SignalProcessBinder;
+    }
+    @Override
+    public void onDestroy(){
+        Log.i(TAG, "onDestroy method called");
+    }
 
-
-
+    /*********************************** DSP Processing functions and extra necessary functions below here *****************************/
 
     /**
      * An envelope detector.

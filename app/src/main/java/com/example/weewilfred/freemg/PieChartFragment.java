@@ -25,7 +25,9 @@ import android.widget.TextView;
 
 import com.example.weewilfred.freemg.SignalProcessService.MyLocalBinder;
 
+import com.github.mikephil.charting.animation.Easing;
 import com.github.mikephil.charting.charts.PieChart;
+import com.github.mikephil.charting.components.Legend;
 import com.github.mikephil.charting.data.PieData;
 import com.github.mikephil.charting.data.PieDataSet;
 import com.github.mikephil.charting.data.PieEntry;
@@ -39,26 +41,26 @@ public class PieChartFragment extends Fragment implements View.OnClickListener {
     SignalProcessService pieService;
     boolean isBound = false;
     private static float[] emg = new float[5000];
+    static float tension;
     Button b;
-
+    private PieChart mChart;
 
 
     public PieChartFragment() {
     }
 
-    private OnFragmentInteractionListener mListener;
-    private PieChart mChart;
 
 
 
     @Override
     public View onCreateView(LayoutInflater inflater,@Nullable ViewGroup container,
-                            @Nullable Bundle savedInstanceState) {
+                             @Nullable Bundle savedInstanceState) {
 
         View pieChartView = inflater.inflate(R.layout.pie_chart_fragment, container, false);
 
         mChart = (PieChart) pieChartView.findViewById(R.id.pieChart1);
-        mChart.setDescription("Relaxometer");
+        mChart.setDescription("Brain Training Tools");
+        mChart.setDescriptionPosition(400,100);
 
         Typeface tf = Typeface.DEFAULT;
 
@@ -73,9 +75,10 @@ public class PieChartFragment extends Fragment implements View.OnClickListener {
         mChart.setTransparentCircleRadius(35f);
         mChart.setTransparentCircleColor(50);
         mChart.setBackgroundColor(1);
+        Legend l = mChart.getLegend();
+        l.setEnabled(false);
         //disable rotation
         mChart.setRotationEnabled(false);
-
         mChart.setData(generatePieData());
 
         //Set up for StartSensor Button
@@ -90,18 +93,10 @@ public class PieChartFragment extends Fragment implements View.OnClickListener {
     @Override
     public void onResume() {
         super.onResume();
-        refresh();
+        mChart.animateY(1500, Easing.EasingOption.EaseInOutQuad);
+        mChart.spin(1500, 0, 360, Easing.EasingOption.EaseInOutQuad);
     }
 
-    private void refresh() {
-        //TODO: somethings to refresh the display ie check sensor connection, graphical indicators
-        // emg = pieService.processEMG();
-    }
-
-    public interface OnFragmentInteractionListener {
-        // TODO: Update argument type and name
-        void onFragmentInteraction(Uri uri);
-    }
 
     private SpannableString generateCenterText() {
         SpannableString s = new SpannableString("Current Activity");
@@ -113,6 +108,7 @@ public class PieChartFragment extends Fragment implements View.OnClickListener {
     public void getSensorData(){
         //TODO: use this function to receive data from the sensor and send it to generate pie data
         emg = pieService.processEMG();
+        tension = pieService.integrateFunction();
     }
 
     @Override
@@ -122,6 +118,9 @@ public class PieChartFragment extends Fragment implements View.OnClickListener {
                 final int status =(Integer) v.getTag();
                 if(status == 1) {
                     getSensorData();
+                    mChart.setData(generatePieData());
+                    mChart.invalidate();
+                    mChart.refreshDrawableState();
                     b.setText("Stop Sensor", TextView.BufferType.EDITABLE);
                     v.setTag(0); //pause
                 } else {
@@ -142,7 +141,7 @@ public class PieChartFragment extends Fragment implements View.OnClickListener {
         ArrayList<PieEntry> entries1 = new ArrayList<PieEntry>();
         //getSensorData();
         //Populate the arraylist either in a loop or individually
-        entries1.add(new PieEntry((emg[1]), "Relaxation "));
+        entries1.add(new PieEntry((100-tension), "Relaxation "));
         entries1.add(new PieEntry((float) ((Math.random() * 60)+ 40), "Tension "));
 
 
