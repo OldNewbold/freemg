@@ -1,5 +1,7 @@
 package com.example.weewilfred.freemg;
 
+import android.animation.ArgbEvaluator;
+import android.animation.ObjectAnimator;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.net.Uri;
@@ -15,6 +17,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.RelativeLayout;
+
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import android.os.IBinder;
 import android.content.Context;
@@ -28,34 +32,37 @@ import com.example.weewilfred.freemg.SignalProcessService.MyLocalBinder;
 import com.github.mikephil.charting.animation.Easing;
 import com.github.mikephil.charting.charts.PieChart;
 import com.github.mikephil.charting.components.Legend;
+import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.PieData;
 import com.github.mikephil.charting.data.PieDataSet;
 import com.github.mikephil.charting.data.PieEntry;
+import com.github.mikephil.charting.highlight.Highlight;
 import com.github.mikephil.charting.utils.ColorTemplate;
 
+import static java.lang.Float.parseFloat;
+import static java.lang.Thread.sleep;
 
 
-public class PieChartFragment extends Fragment implements View.OnClickListener {
+public class PieChartFragment extends Fragment implements View.OnClickListener{
 
     private static final String TAG = "PieChartFragment";
     SignalProcessService pieService;
     boolean isBound = false;
-    private static float[] emg = new float[5000];
-    static float tension;
+    private static float[] emg = new float[4999];
+    private static double[] forceDistribution = new double[3];
     Button b;
     private PieChart mChart;
 
-
     public PieChartFragment() {
+        //Empty Constructor
     }
-
-
-
 
     @Override
     public View onCreateView(LayoutInflater inflater,@Nullable ViewGroup container,
                              @Nullable Bundle savedInstanceState) {
 
+        setRetainInstance(true);
+        doBindService();
         View pieChartView = inflater.inflate(R.layout.pie_chart_fragment, container, false);
 
         mChart = (PieChart) pieChartView.findViewById(R.id.pieChart1);
@@ -86,15 +93,15 @@ public class PieChartFragment extends Fragment implements View.OnClickListener {
         b.setOnClickListener(this);
         b.setTag(1);
 
-        doBindService();
+
         return pieChartView;
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        mChart.animateY(1500, Easing.EasingOption.EaseInOutQuad);
-        mChart.spin(1500, 0, 360, Easing.EasingOption.EaseInOutQuad);
+        mChart.animateY(1200, Easing.EasingOption.EaseInOutQuad);
+        //mChart.spin(1200, 180, 360, Easing.EasingOption.EaseInOutQuad);
     }
 
 
@@ -105,10 +112,25 @@ public class PieChartFragment extends Fragment implements View.OnClickListener {
         return s;
     }
 
+    /******* Function used to check if the signal Service process has completed without holding up the UI thread *****/
+    public void pollService(){
+        Runnable r = new Runnable() {
+            @Override
+            public void run() {
+                while (pieService.sensorFinish != true){}
+                //do other things
+            }
+        };
+        Thread pollService = new Thread(r);
+        pollService.start();
+    }
+
     public void getSensorData(){
-        //TODO: use this function to receive data from the sensor and send it to generate pie data
-        emg = pieService.processEMG();
-        tension = pieService.integrateFunction();
+        /* use this function to receive data from the sensorProcessService */
+        pieService.processEMG();
+        //tension = pieService.getNormalizedTension();
+        forceDistribution = pieService.getForceDistribution();
+        emg = pieService.getEmg();
     }
 
     @Override
@@ -118,32 +140,60 @@ public class PieChartFragment extends Fragment implements View.OnClickListener {
                 final int status =(Integer) v.getTag();
                 if(status == 1) {
                     getSensorData();
+                    emgColor();
+                    b.setText("Stop Sensor", TextView.BufferType.EDITABLE);
+                    v.setTag(0); //pause
+                    Log.d(TAG, "getSensorData has been called to run");
                     mChart.setData(generatePieData());
                     mChart.invalidate();
                     mChart.refreshDrawableState();
-                    b.setText("Stop Sensor", TextView.BufferType.EDITABLE);
-                    v.setTag(0); //pause
                 } else {
                     b.setText("Start Sensor", TextView.BufferType.EDITABLE);
                     v.setTag(1); //pause
                 }
-                Log.d(TAG, "getSensorData has been called to run");
+
                 break;
         }
     }
+
+    /*@Override
+    public void onValueSelected(Entry e, Highlight h) {
+
+        if (e == null)
+            return;
+        Log.i("VAL SELECTED",
+                "Value: " + e.getY() + ", index: " + h.getX()
+                        + ", DataSet index: " + h.getDataSetIndex());
+    }
+
+    @Override
+    public void onNothingSelected() {
+        Log.i("PieChart", "nothing selected");
+    }*/
+
+
+
 
     //TODO: Data from EMG sensor is sent to this function for processing and animating
     protected PieData generatePieData() {
         Typeface tf;
         tf = Typeface.DEFAULT;
-        //int count = 1;
+        int elapsedTime;
 
         ArrayList<PieEntry> entries1 = new ArrayList<PieEntry>();
-        //getSensorData();
-        //Populate the arraylist either in a loop or individually
-        entries1.add(new PieEntry((100-tension), "Relaxation "));
-        entries1.add(new PieEntry((float) ((Math.random() * 60)+ 40), "Tension "));
-
+        if (isBound == true) {
+            entries1.add(new PieEntry((float) forceDistribution[0], "Low"));
+            entries1.add(new PieEntry((float) forceDistribution[1], "Medium"));
+            entries1.add(new PieEntry((float) forceDistribution[2], "High"));
+            Log.d(TAG, "Medium: " + forceDistribution[1] + " Low: " + forceDistribution[0] + " High: " + forceDistribution[2]);
+        }
+        else {
+            entries1.add(new PieEntry(100, "Sensor is disconnected"));
+        }
+        if (isBound == true) {
+            elapsedTime = (pieService.getReadCounter() * 5);
+            mChart.setCenterText("Elapsed Time " + Integer.toString(elapsedTime));
+        }
 
         PieDataSet ds1 = new PieDataSet(entries1, "Spotty");
         int[] relaxometer = getContext().getResources().getIntArray(R.array.relaxometer);
@@ -156,6 +206,29 @@ public class PieChartFragment extends Fragment implements View.OnClickListener {
         d.setValueTypeface(tf);
 
         return d;
+    }
+    protected void emgColor() {
+        emg = pieService.getEmg();
+        Log.d(TAG, "emgColor thread running");
+        /*ObjectAnimator colorFade = ObjectAnimator.ofObject(mChart.getAnimation(), "HoleColor", new ArgbEvaluator(), Color.argb(255,255,255,255), 0xff000000);
+        colorFade.setDuration(5000);
+        colorFade.start();*/
+        /*Runnable r = new Runnable() {
+            @Override
+            public void run() {
+                int i;
+                for (i = 0; i > 245; i++) {
+                    mChart.setHoleColor(Color.rgb(i, i, i)); //TODO: Change color of centre hole color to scale from blue to red as activity increases and decreases
+                    mChart.refreshDrawableState();
+                    try{ sleep(19); } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+            };
+        Thread SignalProcessThread = new Thread(r);
+        SignalProcessThread.start();*/
+
     }
 
     private ServiceConnection pieConnection = new ServiceConnection() {

@@ -23,6 +23,7 @@
     <array name="relaxometer">
         <item>@color/cyan</item>
         <item>@color/light_brown</item>
+        <item>@color/deep_red</item>
     </array>
     <attr format="reference" name="drawerArrowStyle"/>
     <attr format="dimension" name="height"/>
@@ -60,7 +61,7 @@
     <color name="colorPrimary">#51c2ee</color>
     <color name="colorPrimaryDark">#000000</color>
     <color name="cyan">#99d9ea</color>
-    <color name="deep_red">#ba0808</color>
+    <color name="deep_red">#DD5626</color>
     <color name="dim_foreground_disabled_material_dark">#80bebebe</color>
     <color name="dim_foreground_disabled_material_light">#80323232</color>
     <color name="dim_foreground_material_dark">#ffbebebe</color>

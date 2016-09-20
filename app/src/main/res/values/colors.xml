@@ -16,12 +16,13 @@
     <color name="violet">#7F00FF</color>
     <color name="magenta">#FF00FF</color>
     <color name="black">#000000</color>
-    <color name="deep_red">#ba0808</color>
+    <color name="deep_red">#DD5626</color>
     <color name="light_brown">#ba6408</color>
 
     <array name="relaxometer">
         <item>@color/cyan</item>
         <item>@color/light_brown</item>
+        <item>@color/deep_red</item>
     </array>
     <array name="rainbow">
         <item>@color/violet</item>

@@ -5,7 +5,7 @@
         jar="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\build\intermediates\incremental-runtime-classes\debug\instant-run.jar"
         jumboMode="true"
         revision="24.0.0"
-        sha1="9249a923a74613b66da549bceaa24814c478a593">
+        sha1="b7902bd7457a1e5dc72a3766c69fb2d7a3fb578e">
         <dex dex="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\build\intermediates\transforms\dex\debug\folders\1000\10\instant-run_14abe3155e35819847a7d286d6c549f57683cda6\classes.dex" />
     </item>
     <item
@@ -61,7 +61,7 @@
         jar="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\build\intermediates\incremental-classes\debug\instant-run-bootstrap.jar"
         jumboMode="true"
         revision="24.0.0"
-        sha1="fa864e04ace6c9061a0b8a0e048651543a1e02d5">
+        sha1="1a1cb6fbb6ecba5b55bdb97c84934e1635e37bda">
         <dex dex="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\build\intermediates\transforms\dex\debug\folders\1000\10\instant-run-bootstrap_2426fab457610d2e93585357660be33b78803a06\classes.dex" />
     </item>
     <item
