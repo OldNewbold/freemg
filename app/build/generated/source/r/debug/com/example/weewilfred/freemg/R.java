@@ -1807,7 +1807,7 @@ containing a value of this type.
         public static final int action_mode_bar=0x7f0e0043;
         public static final int action_mode_bar_stub=0x7f0e0042;
         public static final int action_mode_close_button=0x7f0e0027;
-        public static final int action_settings=0x7f0e0065;
+        public static final int action_settings=0x7f0e0066;
         public static final int activity_chooser_view_content=0x7f0e0028;
         public static final int add=0x7f0e0014;
         public static final int alertTitle=0x7f0e0034;
@@ -1822,6 +1822,7 @@ containing a value of this type.
         public static final int contentPanel=0x7f0e0035;
         public static final int custom=0x7f0e003b;
         public static final int customPanel=0x7f0e003a;
+        public static final int debugText=0x7f0e0065;
         public static final int decor_content_parent=0x7f0e0044;
         public static final int default_activity_button=0x7f0e002b;
         public static final int disableHome=0x7f0e000d;
@@ -2329,7 +2330,8 @@ containing a value of this type.
         public static final int Widget_AppCompat_Toolbar_Button_Navigation=0x7f0a014b;
     }
     public static final class xml {
-        public static final int pref_main=0x7f060000;
+        public static final int device_filter=0x7f060000;
+        public static final int pref_main=0x7f060001;
     }
     public static final class styleable {
         /** Attributes that can be used with a ActionBar.

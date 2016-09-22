@@ -1,10 +1,15 @@
 package com.example.weewilfred.freemg;
 
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.os.Binder;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Message;
 import android.util.Log;
+import android.widget.EditText;
+import android.widget.Toast;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -15,6 +20,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 
+import com.ftdi.j2xx.D2xxManager;
+import com.ftdi.j2xx.FT_Device;
+
 import static java.lang.Float.parseFloat;
 
 
@@ -24,6 +32,7 @@ import static java.lang.Float.parseFloat;
  ***/
 public class SignalProcessService extends Service {
 
+    //DSPservice global variables
     private static final String TAG = "DSPService";
     private final IBinder SignalProcessBinder = new MyLocalBinder();        //Object to bind the process to the service we will create the MyLocalBinder method
     int readCounter = 0;
@@ -36,8 +45,47 @@ public class SignalProcessService extends Service {
     float Iarea = 0;
     boolean sensorFinish = false;
 
-    public SignalProcessService() {
-        //Constructor to call this service from other classes
+    //Dt2xx Global Variables
+    static int iEnableReadFlag = 1;
+    byte addSensor2[] = {0x52, 0x00, 0x02, 0x01, 0x02, (byte) 0xB7, 0x5E, 0x00, 0x05, 0x00, 0x55, (byte)0x94, 0x02, 0x01, 0x00, 0x00};
+    byte getSensor2[] = {0x52, 0x00, 0x04, 0x01};
+    byte setAcqusition[] = {0x52, 0x00, 0x05, 0x03, 0x02};      //byte 5: 0x00 = raw, 0x01 = ADPCM, 0x02 = Envelope
+    byte setTrigger[] = {0x52, 0x00, 0x08, 0x01};
+    byte startSensor[] = {0x52, 0x02, 0x09};
+    byte pad[] = {0x00};
+    byte errorCheckPad[] = {0x02, 0x01};
+    byte[] sensorCommands[] = {addSensor2, getSensor2, setAcqusition, setTrigger, startSensor};
+    byte readText[];
+
+    static Context DeviceUARTContext;
+    D2xxManager ftdid2xx;
+    FT_Device ftDev = null;
+    int DevCount = -1;
+    int currentIndex = -1;
+    int openIndex = 0;
+
+    /* D2xx local variables*/
+    int baudRate = 230400; /*baud rate*/
+    byte stopBit = 1; /*1:1stop bits, 2:2 stop bits*/
+    byte dataBit = 8; /*8:8bit, 7: 7bit*/
+    byte parity = 0;  /* 0: none, 1: odd, 2: even, 3: mark, 4: space*/
+    byte flowControl = 1; /*0:none, 1: flow control(CTS,RTS)*/
+    //int portNumber; /*port number*/
+    //ArrayList<CharSequence> portNumberList;
+
+
+    public static final int readLength = 512;
+    public int readcount = 0;
+    public int iavailable = 0;
+    byte[] readData;
+    char[] readDataToText;
+    public boolean bReadThreadGoing = false;
+    public readThread read_thread;
+
+    boolean uart_configured = false;
+
+    /* Empty Constructor */
+    public SignalProcessService(){
     }
 
     /*********
@@ -127,6 +175,10 @@ public class SignalProcessService extends Service {
         Log.d(TAG, "Iarea: " + Iarea + " NormalizedTension: " + normalizedTension);
     }
 
+
+    /*******************************
+     *  Getters and Setters
+     ***********************/
     public float getNormalizedTension(){
         return Math.abs(normalizedTension);
     }
@@ -141,6 +193,9 @@ public class SignalProcessService extends Service {
     }
     public int getReadCounter(){
         return readCounter;
+    }
+    public byte[] getSensorCommands(int i){
+        return sensorCommands[i];
     }
 
 
@@ -217,7 +272,8 @@ public class SignalProcessService extends Service {
 
     @Override
     public IBinder onBind(Intent intent) {
-        //Handle what happens when this service is bound to a client,
+        //Handle what happens when this service is bound to a client
+
         return SignalProcessBinder;
     }
 
@@ -227,5 +283,314 @@ public class SignalProcessService extends Service {
         Log.i(TAG, "onDestroy method but only this log runs");
     }
 
+    /**********************     FTD2XX Functions    ****************************************************/
+
+
+    public void notifyUSBDeviceAttach(Context parentContext , D2xxManager ftdid2xxContext)
+    {
+        DeviceUARTContext = parentContext;
+        ftdid2xx = ftdid2xxContext;
+
+        DevCount = 0;
+        createDeviceList();
+        if(DevCount > 0)
+        {
+            try {
+                connectFunction();
+                SetConfig(baudRate, dataBit, stopBit, parity, flowControl);
+                EnableRead();
+                /****Procedure for connecting sensor 2 sends all of the byteCommands to the sendMessage function ***/
+                //for (int i = 0; i < Array.getLength(sensorCommands); i++){
+                Toast.makeText(DeviceUARTContext,"Command: " + sensorCommands[0] ,Toast.LENGTH_SHORT).show();
+                SendMessage(sensorCommands[0]);
+                //}
+            }catch (Exception e){
+                Toast.makeText(DeviceUARTContext,"connection failure to sensor, you dingus",Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    public void notifyUSBDeviceDetach()
+    {
+        disconnectFunction();
+    }
+
+    public void createDeviceList()
+    {
+        int tempDevCount = ftdid2xx.createDeviceInfoList(DeviceUARTContext);
+        Toast.makeText(DeviceUARTContext,"Devices found: " + tempDevCount ,Toast.LENGTH_SHORT).show();
+        if (tempDevCount > 0)
+        {
+            if( DevCount != tempDevCount )
+            {
+                DevCount = tempDevCount;
+                //updatePortNumberSelector();
+            }
+        }
+        else
+        {
+            DevCount = -1;
+            currentIndex = -1;
+        }
+    }
+    public void disconnectFunction()
+    {
+        DevCount = -1;
+        currentIndex = -1;
+        bReadThreadGoing = false;
+        try {
+            Thread.sleep(50);
+        }
+        catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        if(ftDev != null)
+        {
+            synchronized(ftDev)
+            {
+                if( true == ftDev.isOpen())
+                {
+                    ftDev.close();
+                }
+            }
+        }
+    }
+
+    public void connectFunction()
+    {
+        int tmpProtNumber = openIndex + 1;
+
+        if( currentIndex != openIndex )
+        {
+            if(null == ftDev)
+            {
+                ftDev = ftdid2xx.openByIndex(DeviceUARTContext, openIndex);
+            }
+            else
+            {
+                synchronized(ftDev)
+                {
+                    Toast.makeText(DeviceUARTContext,"Attempting to open port",Toast.LENGTH_SHORT).show();
+                    ftDev = ftdid2xx.openByIndex(DeviceUARTContext, openIndex);
+                }
+            }
+            uart_configured = false;
+        }
+        else
+        {
+            Toast.makeText(DeviceUARTContext,"Device port " + tmpProtNumber + " is already opened",Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        if(ftDev == null)
+        {
+            Toast.makeText(DeviceUARTContext,"open device port("+tmpProtNumber+") NG, ftDev == null", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        if (true == ftDev.isOpen())
+        {
+            currentIndex = openIndex;
+            Toast.makeText(DeviceUARTContext, "open device port(" + tmpProtNumber + ") OK", Toast.LENGTH_SHORT).show();
+
+            if(false == bReadThreadGoing)
+            {
+                read_thread = new readThread(handler);
+                read_thread.start();
+                bReadThreadGoing = true;
+                Toast.makeText(DeviceUARTContext, "Reading USB Responses", Toast.LENGTH_SHORT).show();
+
+            }
+        }
+        else
+        {
+            Toast.makeText(DeviceUARTContext, "open device port(" + tmpProtNumber + ") NG", Toast.LENGTH_LONG).show();
+            //Toast.makeText(DeviceUARTContext, "Need to get permission!", Toast.LENGTH_SHORT).show();
+        }
+    }
+    public void SetConfig(int baud, byte dataBits, byte stopBits, byte parity, byte flowControl)
+    {
+        if (ftDev.isOpen() == false) {
+            //Log.e("j2xx", "SetConfig: device not open");
+            Toast.makeText(DeviceUARTContext, "j2xx, Device not open", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // configure our port
+        // reset to UART mode for 232 devices
+        ftDev.setBitMode((byte) 0, D2xxManager.FT_BITMODE_RESET);
+
+        ftDev.setBaudRate(baud);
+
+        switch (dataBits) {
+            case 7:
+                dataBits = D2xxManager.FT_DATA_BITS_7;
+                break;
+            case 8:
+                dataBits = D2xxManager.FT_DATA_BITS_8;
+                break;
+            default:
+                dataBits = D2xxManager.FT_DATA_BITS_8;
+                break;
+        }
+
+        switch (stopBits) {
+            case 1:
+                stopBits = D2xxManager.FT_STOP_BITS_1;
+                break;
+            case 2:
+                stopBits = D2xxManager.FT_STOP_BITS_2;
+                break;
+            default:
+                stopBits = D2xxManager.FT_STOP_BITS_1;
+                break;
+        }
+
+        switch (parity) {
+            case 0:
+                parity = D2xxManager.FT_PARITY_NONE;
+                break;
+            case 1:
+                parity = D2xxManager.FT_PARITY_ODD;
+                break;
+            case 2:
+                parity = D2xxManager.FT_PARITY_EVEN;
+                break;
+            case 3:
+                parity = D2xxManager.FT_PARITY_MARK;
+                break;
+            case 4:
+                parity = D2xxManager.FT_PARITY_SPACE;
+                break;
+            default:
+                parity = D2xxManager.FT_PARITY_NONE;
+                break;
+        }
+
+        ftDev.setDataCharacteristics(dataBits, stopBits, parity);
+
+        short flowCtrlSetting;
+        switch (flowControl) {
+            case 0:
+                flowCtrlSetting = D2xxManager.FT_FLOW_NONE;
+                break;
+            case 1:
+                flowCtrlSetting = D2xxManager.FT_FLOW_RTS_CTS;
+                break;
+            case 2:
+                flowCtrlSetting = D2xxManager.FT_FLOW_DTR_DSR;
+                break;
+            case 3:
+                flowCtrlSetting = D2xxManager.FT_FLOW_XON_XOFF;
+                break;
+            default:
+                flowCtrlSetting = D2xxManager.FT_FLOW_NONE;
+                break;
+        }
+
+        // TODO : flow ctrl: XOFF/XOM
+        // TODO : flow ctrl: XOFF/XOM
+        ftDev.setFlowControl(flowCtrlSetting, (byte) 0x0b, (byte) 0x0d);
+
+        uart_configured = true;
+        Toast.makeText(DeviceUARTContext, "Config done", Toast.LENGTH_SHORT).show();
+    }
+    public void SendMessage(byte[] byteCode) {
+        if (ftDev.isOpen() == false) {
+            Log.e("j2xx", "SendMessage: device not open");
+            return;
+        }
+        ftDev.setLatencyTimer((byte) 16);
+//		ftDev.purge((byte) (D2xxManager.FT_PURGE_TX | D2xxManager.FT_PURGE_RX));
+        byte[] OutData = byteCode;
+        ftDev.write(OutData, Array.getLength(byteCode));
+        if (Array.getLength(byteCode) != 16) {
+            for (int i = Array.getLength(byteCode); i < 16; i++) {
+                if (i < 14) {
+                    ftDev.write(pad, Array.getLength(pad));
+                }
+                else{
+                    ftDev.write(errorCheckPad, Array.getLength(errorCheckPad));
+                }
+            }
+        }
+    }
+    public void EnableRead (){
+        iEnableReadFlag = (iEnableReadFlag + 1)%2;
+
+        if(iEnableReadFlag == 1) {
+            ftDev.purge((byte) (D2xxManager.FT_PURGE_TX));
+            ftDev.restartInTask();
+            //readEnButton.setText("Read Enabled");
+            Toast.makeText(DeviceUARTContext, "Read Enabled", Toast.LENGTH_SHORT).show();
+        }
+        else{
+            ftDev.stopInTask();
+            //readEnButton.setText("Read Disabled");
+            Toast.makeText(DeviceUARTContext, "Read Disabled", Toast.LENGTH_SHORT).show();
+        }
+    }
+    final Handler handler =  new Handler()
+    {
+        @Override
+        public void handleMessage(Message msg)
+        {
+            if(iavailable > 0)
+            {
+                readText.equals(String.copyValueOf(readDataToText, 0, iavailable));
+                Toast.makeText(DeviceUARTContext, "readText: " + readText, Toast.LENGTH_SHORT).show();
+            }
+        }
+    };
+
+    private class readThread  extends Thread
+    {
+        Handler mHandler;
+
+        readThread(Handler h){
+            mHandler = h;
+            this.setPriority(Thread.MIN_PRIORITY);
+        }
+
+        @Override
+        public void run()
+        {
+            int i;
+
+            while(true == bReadThreadGoing)
+            {
+                try {
+                    Thread.sleep(1);
+                } catch (InterruptedException e) {
+
+                }
+
+                synchronized(ftDev)
+                {
+                    iavailable = ftDev.getQueueStatus();
+                    if (iavailable > 0) {
+
+                        if(iavailable > readLength){
+                            iavailable = readLength;
+                        }
+
+                        ftDev.read(readData, iavailable);
+                        for (i = 0; i < iavailable; i++) {
+                            readDataToText[i] = (char) readData[i];
+                        }
+                        Message msg = mHandler.obtainMessage();
+                        mHandler.sendMessage(msg);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Hot plug for plug in solution
+     * This is workaround before android 4.2 . Because BroadcastReceiver can not
+     * receive ACTION_USB_DEVICE_ATTACHED broadcast
+     */
 
 }

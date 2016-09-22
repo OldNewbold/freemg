@@ -1,5 +1,9 @@
 [
     {
+        "merged": "C:\\Users\\Wee Wilfred\\Documents\\AndroidProjects\\Freemg\\app\\build\\intermediates\\res\\merged\\debug\\xml\\device_filter.xml",
+        "source": "C:\\Users\\Wee Wilfred\\Documents\\AndroidProjects\\Freemg\\app\\src\\main\\res\\xml\\device_filter.xml"
+    },
+    {
         "merged": "C:\\Users\\Wee Wilfred\\Documents\\AndroidProjects\\Freemg\\app\\build\\intermediates\\res\\merged\\debug\\xml\\pref_main.xml",
         "source": "C:\\Users\\Wee Wilfred\\Documents\\AndroidProjects\\Freemg\\app\\src\\main\\res\\xml\\pref_main.xml"
     }

@@ -4,6 +4,7 @@ import android.animation.ArgbEvaluator;
 import android.animation.ObjectAnimator;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.hardware.usb.UsbManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
@@ -16,6 +17,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.RelativeLayout;
 
 import java.lang.reflect.Array;
@@ -26,9 +28,11 @@ import android.content.Intent;
 import android.content.ComponentName;
 import android.content.ServiceConnection;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.example.weewilfred.freemg.SignalProcessService.MyLocalBinder;
 
+import com.ftdi.j2xx.D2xxManager;
 import com.github.mikephil.charting.animation.Easing;
 import com.github.mikephil.charting.charts.PieChart;
 import com.github.mikephil.charting.components.Legend;
@@ -37,13 +41,17 @@ import com.github.mikephil.charting.data.PieData;
 import com.github.mikephil.charting.data.PieDataSet;
 import com.github.mikephil.charting.data.PieEntry;
 import com.github.mikephil.charting.highlight.Highlight;
+import com.github.mikephil.charting.listener.OnChartValueSelectedListener;
 import com.github.mikephil.charting.utils.ColorTemplate;
+import com.github.mikephil.charting.interfaces.datasets.IDataSet;
+import com.github.mikephil.charting.formatter.PercentFormatter;
+
 
 import static java.lang.Float.parseFloat;
 import static java.lang.Thread.sleep;
 
 
-public class PieChartFragment extends Fragment implements View.OnClickListener{
+public class PieChartFragment extends Fragment implements View.OnClickListener, OnChartValueSelectedListener {
 
     private static final String TAG = "PieChartFragment";
     SignalProcessService pieService;
@@ -51,7 +59,10 @@ public class PieChartFragment extends Fragment implements View.OnClickListener{
     private static float[] emg = new float[4999];
     private static double[] forceDistribution = new double[3];
     Button b;
+    TextView e;
     private PieChart mChart;
+
+    public static D2xxManager ftD2xx = null;
 
     public PieChartFragment() {
         //Empty Constructor
@@ -66,7 +77,7 @@ public class PieChartFragment extends Fragment implements View.OnClickListener{
         View pieChartView = inflater.inflate(R.layout.pie_chart_fragment, container, false);
 
         mChart = (PieChart) pieChartView.findViewById(R.id.pieChart1);
-        mChart.setDescription("Brain Training Tools");
+        mChart.setDescription("");
         mChart.setDescriptionPosition(400,100);
 
         Typeface tf = Typeface.DEFAULT;
@@ -75,6 +86,9 @@ public class PieChartFragment extends Fragment implements View.OnClickListener{
         mChart.setCenterTextTypeface(tf);
         mChart.setCenterText(generateCenterText());
         mChart.setCenterTextSize(8f);
+
+        //Set pieChart Click listener
+        mChart.setOnChartValueSelectedListener(this);
 
         //Piechart centre circle
         mChart.setHoleColor(5000); //TODO: Change color of centre hole color to scale from blue to red as activity increases and decreases
@@ -93,6 +107,10 @@ public class PieChartFragment extends Fragment implements View.OnClickListener{
         b.setOnClickListener(this);
         b.setTag(1);
 
+        //Set up for debug text
+        e = (TextView) pieChartView.findViewById(R.id.debugText);
+        e.setEnabled(true);
+        e.setText("No commands yet");
 
         return pieChartView;
     }
@@ -101,13 +119,13 @@ public class PieChartFragment extends Fragment implements View.OnClickListener{
     public void onResume() {
         super.onResume();
         mChart.animateY(1200, Easing.EasingOption.EaseInOutQuad);
-        //mChart.spin(1200, 180, 360, Easing.EasingOption.EaseInOutQuad);
+        mChart.spin(1200, 180, 360, Easing.EasingOption.EaseInOutQuad);
     }
 
 
     private SpannableString generateCenterText() {
-        SpannableString s = new SpannableString("Current Activity");
-        s.setSpan(new RelativeSizeSpan(2f), 0, 16, 0);
+        SpannableString s = new SpannableString("Click to Connect Sensor");
+        s.setSpan(new RelativeSizeSpan(2f), 0, 23, 0);
         s.setSpan(new ForegroundColorSpan(Color.BLACK), 8, s.length(),0);
         return s;
     }
@@ -128,9 +146,9 @@ public class PieChartFragment extends Fragment implements View.OnClickListener{
     public void getSensorData(){
         /* use this function to receive data from the sensorProcessService */
         pieService.processEMG();
-        //tension = pieService.getNormalizedTension();
         forceDistribution = pieService.getForceDistribution();
         emg = pieService.getEmg();
+        //tension = pieService.getNormalizedTension();
     }
 
     @Override
@@ -156,7 +174,7 @@ public class PieChartFragment extends Fragment implements View.OnClickListener{
         }
     }
 
-    /*@Override
+    @Override
     public void onValueSelected(Entry e, Highlight h) {
 
         if (e == null)
@@ -168,16 +186,22 @@ public class PieChartFragment extends Fragment implements View.OnClickListener{
 
     @Override
     public void onNothingSelected() {
-        Log.i("PieChart", "nothing selected");
-    }*/
+        Toast.makeText(getContext(),"Attempting to connect sensor",Toast.LENGTH_SHORT).show();
+        try {
+            ftD2xx = D2xxManager.getInstance(getContext());
+        } catch (D2xxManager.D2xxException ex) {
+            ex.printStackTrace();
+        }
+        pieService.notifyUSBDeviceAttach(getContext(), ftD2xx);
+        byte[] commands = pieService.getSensorCommands(0);
+        e.setText();
+    }
 
 
-
-
-    //TODO: Data from EMG sensor is sent to this function for processing and animating
+    //TODO: Data from EMG sensor is sent to this function for updating UI and animating
     protected PieData generatePieData() {
         Typeface tf;
-        tf = Typeface.DEFAULT;
+        tf = Typeface.MONOSPACE;
         int elapsedTime;
 
         ArrayList<PieEntry> entries1 = new ArrayList<PieEntry>();
@@ -185,23 +209,35 @@ public class PieChartFragment extends Fragment implements View.OnClickListener{
             entries1.add(new PieEntry((float) forceDistribution[0], "Low"));
             entries1.add(new PieEntry((float) forceDistribution[1], "Medium"));
             entries1.add(new PieEntry((float) forceDistribution[2], "High"));
-            Log.d(TAG, "Medium: " + forceDistribution[1] + " Low: " + forceDistribution[0] + " High: " + forceDistribution[2]);
+            //Log.d(TAG, "Medium: " + forceDistribution[1] + " Low: " + forceDistribution[0] + " High: " + forceDistribution[2]);
         }
         else {
-            entries1.add(new PieEntry(100, "Sensor is disconnected"));
+            entries1.add(new PieEntry(10, ""));
+            entries1.add(new PieEntry(10, ""));
+            entries1.add(new PieEntry(10, ""));
+            entries1.add(new PieEntry(10, ""));
+            entries1.add(new PieEntry(10, ""));
+            entries1.add(new PieEntry(10, ""));
+            entries1.add(new PieEntry(10, ""));
+            entries1.add(new PieEntry(10, ""));
+            entries1.add(new PieEntry(10, ""));
+            entries1.add(new PieEntry(10, ""));
         }
+        PieDataSet ds1 = new PieDataSet(entries1, "Spotty");
         if (isBound == true) {
             elapsedTime = (pieService.getReadCounter() * 5);
             mChart.setCenterText("Elapsed Time " + Integer.toString(elapsedTime));
+            int[] relaxometer = getContext().getResources().getIntArray(R.array.relaxometer);
+            ds1.setColors(ColorTemplate.createColors(relaxometer));
+        }
+        else{
+            int[] relaxometer = getContext().getResources().getIntArray(R.array.rainbow);
+            ds1.setColors(ColorTemplate.createColors(relaxometer));
         }
 
-        PieDataSet ds1 = new PieDataSet(entries1, "Spotty");
-        int[] relaxometer = getContext().getResources().getIntArray(R.array.relaxometer);
-        ds1.setColors(ColorTemplate.createColors(relaxometer));
         ds1.setSliceSpace(1f);
         ds1.setValueTextColor(Color.WHITE);
         ds1.setValueTextSize(12f);
-
         PieData d = new PieData(ds1);
         d.setValueTypeface(tf);
 
@@ -266,5 +302,32 @@ public class PieChartFragment extends Fragment implements View.OnClickListener{
         super.onDestroy();
         doUnbindService();
     }
+
+    /*D2XX function might need this*/
+    /***@Override
+    protected void onNewIntent(Intent intent)
+    {
+        String action = intent.getAction();
+        if(UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(action))
+        {
+            switch (currect_index)
+            {
+                case 4:
+                    ((OpenDeviceFragment)currentFragment).notifyUSBDeviceAttach(intent);
+                    break;
+                case 5:
+                    ((DeviceUARTFragment)currentFragment).notifyUSBDeviceAttach();
+                    break;
+                case 7:
+                    ((EEPROMFragment)currentFragment).notifyUSBDeviceAttach();
+                    break;
+                case 8:
+                    ((EEPROMUserAreaFragment)currentFragment).notifyUSBDeviceAttach();
+                    break;
+                default:
+                    break;
+            }
+        }
+    }*/
 
 }

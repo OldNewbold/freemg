@@ -512,7 +512,7 @@ int id action_menu_presenter 0x7f0e0003
 int id action_mode_bar 0x7f0e0043
 int id action_mode_bar_stub 0x7f0e0042
 int id action_mode_close_button 0x7f0e0027
-int id action_settings 0x7f0e0065
+int id action_settings 0x7f0e0066
 int id activity_chooser_view_content 0x7f0e0028
 int id add 0x7f0e0014
 int id alertTitle 0x7f0e0034
@@ -527,6 +527,7 @@ int id collapseActionView 0x7f0e001f
 int id contentPanel 0x7f0e0035
 int id custom 0x7f0e003b
 int id customPanel 0x7f0e003a
+int id debugText 0x7f0e0065
 int id decor_content_parent 0x7f0e0044
 int id default_activity_button 0x7f0e002b
 int id disableHome 0x7f0e000d
@@ -1376,4 +1377,5 @@ int[] styleable ViewStubCompat { 0x010100d0, 0x010100f2, 0x010100f3 }
 int styleable ViewStubCompat_android_id 0
 int styleable ViewStubCompat_android_inflatedId 2
 int styleable ViewStubCompat_android_layout 1
-int xml pref_main 0x7f060000
+int xml device_filter 0x7f060000
+int xml pref_main 0x7f060001
