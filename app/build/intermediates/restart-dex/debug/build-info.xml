@@ -4,42 +4,32 @@
     api-level="23"
     density="xxxhdpi"
     format="7"
-    timestamp="224201142411635"
-    token="8431866697002521296"
-    verifier="FIELD_ADDED" >
+    timestamp="18296060844359"
+    token="8431866697002521296" >
 
     <task
         name="javac"
-        duration="562" />
+        duration="1538" />
     <task
         name="instant-run-dex"
         duration="0" />
     <task
         name="instant-run-transform"
-        duration="77" />
+        duration="163" />
     <task
         name="verifier"
-        duration="21" />
+        duration="20" />
 
     <artifact
         location="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\build\intermediates\transforms\dex\debug\folders\1000\5\slice_7\classes.dex"
         type="DEX" />
 
-    <build timestamp="223625284082120" >
+    <build timestamp="17872480939265" >
         <artifact
             location="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\build\outputs\apk\app-debug.apk"
             type="MAIN" />
     </build>
-    <build
-        timestamp="224159410480941"
-        verifier="METHOD_ADDED" >
-        <artifact
-            location="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\build\intermediates\res\resources-debug.ap_"
-            type="RESOURCES" />
-    </build>
-    <build
-        timestamp="224201142411635"
-        verifier="FIELD_ADDED" >
+    <build timestamp="18296060844359" >
         <artifact
             location="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\build\intermediates\transforms\dex\debug\folders\1000\5\slice_7\classes.dex"
             type="DEX" />

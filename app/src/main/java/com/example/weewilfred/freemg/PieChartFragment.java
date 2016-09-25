@@ -22,6 +22,7 @@ import android.widget.RelativeLayout;
 
 import java.lang.reflect.Array;
 import java.util.ArrayList;
+
 import android.os.IBinder;
 import android.content.Context;
 import android.content.Intent;
@@ -61,6 +62,7 @@ public class PieChartFragment extends Fragment implements View.OnClickListener, 
     Button b;
     TextView e;
     private PieChart mChart;
+    int commandIndex = 0;
 
     public static D2xxManager ftD2xx = null;
 
@@ -69,7 +71,7 @@ public class PieChartFragment extends Fragment implements View.OnClickListener, 
     }
 
     @Override
-    public View onCreateView(LayoutInflater inflater,@Nullable ViewGroup container,
+    public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container,
                              @Nullable Bundle savedInstanceState) {
 
         setRetainInstance(true);
@@ -78,7 +80,7 @@ public class PieChartFragment extends Fragment implements View.OnClickListener, 
 
         mChart = (PieChart) pieChartView.findViewById(R.id.pieChart1);
         mChart.setDescription("");
-        mChart.setDescriptionPosition(400,100);
+        mChart.setDescriptionPosition(400, 100);
 
         Typeface tf = Typeface.DEFAULT;
 
@@ -110,8 +112,37 @@ public class PieChartFragment extends Fragment implements View.OnClickListener, 
         //Set up for debug text
         e = (TextView) pieChartView.findViewById(R.id.debugText);
         e.setEnabled(true);
-        e.setText("No commands yet");
-
+        e.setClickable(true);
+        e.setTag(1);
+        e.setText("No commands yet",TextView.BufferType.EDITABLE );
+        e.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                switch (view.getId()){
+                    case R.id.debugText:
+                        final int status2 = (Integer) view.getTag();
+                        if (status2 == 1){
+                            Toast.makeText(getContext(), "Attempting to connect sensor", Toast.LENGTH_SHORT).show();
+                            e.setText("Connecting Sensor", TextView.BufferType.EDITABLE);
+                            if (commandIndex == 0) {
+                                try {
+                                    ftD2xx = D2xxManager.getInstance(getContext());
+                                } catch (D2xxManager.D2xxException ex) {
+                                    ex.printStackTrace();
+                                }
+                                commandIndex++;
+                                pieService.notifyUSBDeviceAttach(getContext(), ftD2xx);
+                            }
+                            view.setTag(0);
+                            e.setText("Click again to receive response", TextView.BufferType.EDITABLE);
+                        } else {
+                            // pieService.notifyUSBDeviceDetach();
+                            e.setText("RS232 response: " + pieService.readDataToText);
+                            view.setTag(1);
+                        }
+                }
+            }
+        });
         return pieChartView;
     }
 
@@ -126,41 +157,50 @@ public class PieChartFragment extends Fragment implements View.OnClickListener, 
     private SpannableString generateCenterText() {
         SpannableString s = new SpannableString("Click to Connect Sensor");
         s.setSpan(new RelativeSizeSpan(2f), 0, 23, 0);
-        s.setSpan(new ForegroundColorSpan(Color.BLACK), 8, s.length(),0);
+        s.setSpan(new ForegroundColorSpan(Color.BLACK), 8, s.length(), 0);
         return s;
     }
 
-    /******* Function used to check if the signal Service process has completed without holding up the UI thread *****/
-    public void pollService(){
+    /*******
+     * Function used to check if the signal Service process has completed without holding up the UI thread
+     *****/
+    public void pollService() {
         Runnable r = new Runnable() {
             @Override
             public void run() {
-                while (pieService.sensorFinish != true){}
+                while (pieService.sensorFinish != true) {
+                }
                 //do other things
             }
         };
         Thread pollService = new Thread(r);
         pollService.start();
     }
+    /*******************
+     * use this function to receive data from the sensorProcessService *
+    **************************************/
+    public void getSensorData() {
 
-    public void getSensorData(){
-        /* use this function to receive data from the sensorProcessService */
         pieService.processEMG();
         forceDistribution = pieService.getForceDistribution();
         emg = pieService.getEmg();
         //tension = pieService.getNormalizedTension();
     }
 
+    /******************
+     * Handle Clicks
+     * @param v - the view object that was clicked
+     ****************************/
     @Override
     public void onClick(View v) {
         switch (v.getId()) {
             case R.id.startButton:
-                final int status =(Integer) v.getTag();
-                if(status == 1) {
+                final int status = (Integer) v.getTag();
+                if (status == 1) {
                     getSensorData();
                     emgColor();
                     b.setText("Stop Sensor", TextView.BufferType.EDITABLE);
-                    v.setTag(0); //pause
+                    v.setTag(0);
                     Log.d(TAG, "getSensorData has been called to run");
                     mChart.setData(generatePieData());
                     mChart.invalidate();
@@ -169,7 +209,6 @@ public class PieChartFragment extends Fragment implements View.OnClickListener, 
                     b.setText("Start Sensor", TextView.BufferType.EDITABLE);
                     v.setTag(1); //pause
                 }
-
                 break;
         }
     }
@@ -186,15 +225,7 @@ public class PieChartFragment extends Fragment implements View.OnClickListener, 
 
     @Override
     public void onNothingSelected() {
-        Toast.makeText(getContext(),"Attempting to connect sensor",Toast.LENGTH_SHORT).show();
-        try {
-            ftD2xx = D2xxManager.getInstance(getContext());
-        } catch (D2xxManager.D2xxException ex) {
-            ex.printStackTrace();
-        }
-        pieService.notifyUSBDeviceAttach(getContext(), ftD2xx);
-        byte[] commands = pieService.getSensorCommands(0);
-        e.setText();
+
     }
 
 
@@ -210,30 +241,21 @@ public class PieChartFragment extends Fragment implements View.OnClickListener, 
             entries1.add(new PieEntry((float) forceDistribution[1], "Medium"));
             entries1.add(new PieEntry((float) forceDistribution[2], "High"));
             //Log.d(TAG, "Medium: " + forceDistribution[1] + " Low: " + forceDistribution[0] + " High: " + forceDistribution[2]);
+        } else {
+            entries1.add(new PieEntry(33, "Low"));
+            entries1.add(new PieEntry(33, "Medium"));
+            entries1.add(new PieEntry(33, "High"));
         }
-        else {
-            entries1.add(new PieEntry(10, ""));
-            entries1.add(new PieEntry(10, ""));
-            entries1.add(new PieEntry(10, ""));
-            entries1.add(new PieEntry(10, ""));
-            entries1.add(new PieEntry(10, ""));
-            entries1.add(new PieEntry(10, ""));
-            entries1.add(new PieEntry(10, ""));
-            entries1.add(new PieEntry(10, ""));
-            entries1.add(new PieEntry(10, ""));
-            entries1.add(new PieEntry(10, ""));
-        }
+
+
         PieDataSet ds1 = new PieDataSet(entries1, "Spotty");
         if (isBound == true) {
             elapsedTime = (pieService.getReadCounter() * 5);
             mChart.setCenterText("Elapsed Time " + Integer.toString(elapsedTime));
-            int[] relaxometer = getContext().getResources().getIntArray(R.array.relaxometer);
-            ds1.setColors(ColorTemplate.createColors(relaxometer));
         }
-        else{
-            int[] relaxometer = getContext().getResources().getIntArray(R.array.rainbow);
-            ds1.setColors(ColorTemplate.createColors(relaxometer));
-        }
+
+        int[] relaxometer = getContext().getResources().getIntArray(R.array.relaxometer);
+        ds1.setColors(ColorTemplate.createColors(relaxometer));
 
         ds1.setSliceSpace(1f);
         ds1.setValueTextColor(Color.WHITE);
@@ -243,6 +265,7 @@ public class PieChartFragment extends Fragment implements View.OnClickListener, 
 
         return d;
     }
+
     protected void emgColor() {
         emg = pieService.getEmg();
         Log.d(TAG, "emgColor thread running");
@@ -285,8 +308,8 @@ public class PieChartFragment extends Fragment implements View.OnClickListener, 
     void doBindService() {
         //Bind service to application then start the service
         Intent i = new Intent(getActivity().getApplicationContext(), SignalProcessService.class);
-        getActivity().getApplicationContext().bindService(i, pieConnection, Context.BIND_AUTO_CREATE );
-        Log.d(TAG, "Attempted service bind" );
+        getActivity().getApplicationContext().bindService(i, pieConnection, Context.BIND_AUTO_CREATE);
+        Log.d(TAG, "Attempted service bind");
     }
 
     void doUnbindService() {
@@ -305,29 +328,29 @@ public class PieChartFragment extends Fragment implements View.OnClickListener, 
 
     /*D2XX function might need this*/
     /***@Override
-    protected void onNewIntent(Intent intent)
-    {
-        String action = intent.getAction();
-        if(UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(action))
-        {
-            switch (currect_index)
-            {
-                case 4:
-                    ((OpenDeviceFragment)currentFragment).notifyUSBDeviceAttach(intent);
-                    break;
-                case 5:
-                    ((DeviceUARTFragment)currentFragment).notifyUSBDeviceAttach();
-                    break;
-                case 7:
-                    ((EEPROMFragment)currentFragment).notifyUSBDeviceAttach();
-                    break;
-                case 8:
-                    ((EEPROMUserAreaFragment)currentFragment).notifyUSBDeviceAttach();
-                    break;
-                default:
-                    break;
-            }
-        }
-    }*/
+     protected void onNewIntent(Intent intent)
+     {
+     String action = intent.getAction();
+     if(UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(action))
+     {
+     switch (currect_index)
+     {
+     case 4:
+     ((OpenDeviceFragment)currentFragment).notifyUSBDeviceAttach(intent);
+     break;
+     case 5:
+     ((DeviceUARTFragment)currentFragment).notifyUSBDeviceAttach();
+     break;
+     case 7:
+     ((EEPROMFragment)currentFragment).notifyUSBDeviceAttach();
+     break;
+     case 8:
+     ((EEPROMUserAreaFragment)currentFragment).notifyUSBDeviceAttach();
+     break;
+     default:
+     break;
+     }
+     }
+     }*/
 
 }

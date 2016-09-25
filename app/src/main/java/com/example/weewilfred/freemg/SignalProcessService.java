@@ -52,7 +52,7 @@ public class SignalProcessService extends Service {
     byte setAcqusition[] = {0x52, 0x00, 0x05, 0x03, 0x02};      //byte 5: 0x00 = raw, 0x01 = ADPCM, 0x02 = Envelope
     byte setTrigger[] = {0x52, 0x00, 0x08, 0x01};
     byte startSensor[] = {0x52, 0x02, 0x09};
-    byte pad[] = {0x00};
+    byte pad = 0x00;
     byte errorCheckPad[] = {0x02, 0x01};
     byte[] sensorCommands[] = {addSensor2, getSensor2, setAcqusition, setTrigger, startSensor};
     byte readText[];
@@ -77,8 +77,8 @@ public class SignalProcessService extends Service {
     public static final int readLength = 512;
     public int readcount = 0;
     public int iavailable = 0;
-    byte[] readData;
-    char[] readDataToText;
+    byte[] readData = new byte[readLength];
+    char[] readDataToText = new char[readLength];
     public boolean bReadThreadGoing = false;
     public readThread read_thread;
 
@@ -303,6 +303,13 @@ public class SignalProcessService extends Service {
                 //for (int i = 0; i < Array.getLength(sensorCommands); i++){
                 Toast.makeText(DeviceUARTContext,"Command: " + sensorCommands[0] ,Toast.LENGTH_SHORT).show();
                 SendMessage(sensorCommands[0]);
+                /*while (readData != sensorSuccess[0]) {
+                    //try again or offer suggestions
+                }*/
+                SendMessage(sensorCommands[1]);
+                SendMessage(sensorCommands[2]);
+                SendMessage(sensorCommands[3]);
+                SendMessage(sensorCommands[4]);
                 //}
             }catch (Exception e){
                 Toast.makeText(DeviceUARTContext,"connection failure to sensor, you dingus",Toast.LENGTH_SHORT).show();
@@ -496,40 +503,53 @@ public class SignalProcessService extends Service {
         uart_configured = true;
         Toast.makeText(DeviceUARTContext, "Config done", Toast.LENGTH_SHORT).show();
     }
-    public void SendMessage(byte[] byteCode) {
-        if (ftDev.isOpen() == false) {
-            Log.e("j2xx", "SendMessage: device not open");
-            return;
-        }
-        ftDev.setLatencyTimer((byte) 16);
-//		ftDev.purge((byte) (D2xxManager.FT_PURGE_TX | D2xxManager.FT_PURGE_RX));
-        byte[] OutData = byteCode;
-        ftDev.write(OutData, Array.getLength(byteCode));
-        if (Array.getLength(byteCode) != 16) {
-            for (int i = Array.getLength(byteCode); i < 16; i++) {
-                if (i < 14) {
-                    ftDev.write(pad, Array.getLength(pad));
+    public void SendMessage(final byte[] byteCode) {
+        Runnable R = new Runnable() {
+            @Override
+            public void run() {
+                if (ftDev.isOpen() == false) {
+                    Log.e("j2xx", "SendMessage: device not open");
+                    Toast.makeText(DeviceUARTContext, "SendMessage: device not open", Toast.LENGTH_SHORT).show();
+                    return;
                 }
-                else{
-                    ftDev.write(errorCheckPad, Array.getLength(errorCheckPad));
+                ftDev.setLatencyTimer((byte) 16);
+                ftDev.purge((byte) (D2xxManager.FT_PURGE_TX | D2xxManager.FT_PURGE_RX));
+                byte[] OutData = byteCode;      //byteCode is the current request code in a byte array
+
+                if (Array.getLength(byteCode) != 16) {
+                    for (int i = Array.getLength(byteCode); i < 16; i++) {
+                        if (i < 14) {
+                            OutData[i] = pad;
+                            //ftDev.write(pad, Array.getLength(pad));
+                        }
+                        else{
+                            //ftDev.write(errorCheckPad, Array.getLength(errorCheckPad));
+                            OutData[i] = errorCheckPad[i-15];
+                        }
+                    }
                 }
+                Toast.makeText(DeviceUARTContext, "Length of Command" + Array.getLength(OutData), Toast.LENGTH_SHORT).show();
+                ftDev.write(OutData, Array.getLength(OutData));
             }
-        }
+        };
+        Thread sendmsg = new Thread(R);
+        sendmsg.run();
+
     }
     public void EnableRead (){
         iEnableReadFlag = (iEnableReadFlag + 1)%2;
 
-        if(iEnableReadFlag == 1) {
+        //if(iEnableReadFlag == 1) {
             ftDev.purge((byte) (D2xxManager.FT_PURGE_TX));
             ftDev.restartInTask();
             //readEnButton.setText("Read Enabled");
             Toast.makeText(DeviceUARTContext, "Read Enabled", Toast.LENGTH_SHORT).show();
-        }
+        /*}
         else{
             ftDev.stopInTask();
             //readEnButton.setText("Read Disabled");
             Toast.makeText(DeviceUARTContext, "Read Disabled", Toast.LENGTH_SHORT).show();
-        }
+        }*/
     }
     final Handler handler =  new Handler()
     {
@@ -539,7 +559,6 @@ public class SignalProcessService extends Service {
             if(iavailable > 0)
             {
                 readText.equals(String.copyValueOf(readDataToText, 0, iavailable));
-                Toast.makeText(DeviceUARTContext, "readText: " + readText, Toast.LENGTH_SHORT).show();
             }
         }
     };
@@ -561,7 +580,7 @@ public class SignalProcessService extends Service {
             while(true == bReadThreadGoing)
             {
                 try {
-                    Thread.sleep(1);
+                    Thread.sleep(5);
                 } catch (InterruptedException e) {
 
                 }
@@ -574,7 +593,6 @@ public class SignalProcessService extends Service {
                         if(iavailable > readLength){
                             iavailable = readLength;
                         }
-
                         ftDev.read(readData, iavailable);
                         for (i = 0; i < iavailable; i++) {
                             readDataToText[i] = (char) readData[i];

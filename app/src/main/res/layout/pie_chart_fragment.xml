@@ -17,7 +17,8 @@
         android:background="@color/button_material_light"
         android:onClick="onClick"
         android:layout_alignParentBottom="true"
-        android:layout_centerHorizontal="true" />
+        android:layout_centerHorizontal="true"
+        android:clickable="false" />
 
     <TextView
         android:layout_width="wrap_content"
@@ -25,9 +26,14 @@
         android:textAppearance="?android:attr/textAppearanceMedium"
         android:text="DebugText"
         android:id="@+id/debugText"
+        android:enabled="false"
+        android:clickable="true"
+        android:contextClickable="false"
+        android:onClick="onClickDebug"
+        android:nestedScrollingEnabled="false"
+        android:gravity="top|center_horizontal"
         android:layout_alignParentTop="true"
-        android:layout_centerHorizontal="true"
-        android:enabled="true"
-        android:autoText="false" />
+        android:layout_alignEnd="@+id/startButton"
+        android:layout_alignStart="@+id/startButton" />
 
 </RelativeLayout>
