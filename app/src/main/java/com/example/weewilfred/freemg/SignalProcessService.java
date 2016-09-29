@@ -8,7 +8,6 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.util.Log;
-import android.widget.EditText;
 import android.widget.Toast;
 
 import java.io.BufferedReader;
@@ -18,7 +17,7 @@ import java.io.InputStreamReader;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Stream;
+
 
 import com.ftdi.j2xx.D2xxManager;
 import com.ftdi.j2xx.FT_Device;
@@ -40,21 +39,31 @@ public class SignalProcessService extends Service {
     private static double[] distribution = new double[3];
     static float[] emg = new float[5000];
     static float normalizedTension = 0;
-    static double[] forceDistribution =  new double[3];
+    static double[] forceDistribution = new double[3];
     int getTime = 5;                                                        //How many seconds of data should we process at a time?
     float Iarea = 0;
     boolean sensorFinish = false;
 
     //Dt2xx Global Variables
     static int iEnableReadFlag = 1;
-    byte addSensor2[] = {0x52, 0x00, 0x02, 0x01, 0x02, (byte) 0xB7, 0x5E, 0x00, 0x05, 0x00, 0x55, (byte)0x94, 0x02, 0x01, 0x00, 0x00};
-    byte getSensor2[] = {0x52, 0x00, 0x04, 0x01};
-    byte setAcqusition[] = {0x52, 0x00, 0x05, 0x03, 0x02};      //byte 5: 0x00 = raw, 0x01 = ADPCM, 0x02 = Envelope
-    byte setTrigger[] = {0x52, 0x00, 0x08, 0x01};
-    byte startSensor[] = {0x52, 0x02, 0x09};
+    //Request commands
+    byte addSensor2[] = {0x52, 0x30, 0x32, 0x31, 0x32, (byte) 0xB7, 0x5E, 0x00, 0x05, 0x00, 0x55, (byte) 0x94, 0x02, 0x01, 0x00, 0x00};
+    byte getSensor2[] = {0x52, 0x30, 0x04, 0x31, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    byte setAcquisition[] = {0x52, 0x30, 0x05, 0x33, 0x32, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};      //byte 5: 0x30 = 0 = raw, 0x31 = ADPCM, 0x02 = Envelope
+    byte setTrigger[] = {0x52, 0x30, 0x38, 0x31, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    byte startSensor[] = {0x52, 0x32, 0x39, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    byte[] sensorCommands[] = {addSensor2, getSensor2, setAcquisition, setTrigger, startSensor};
+    //Response Commands
+    /*byte[] raddSensor2 = {0x41, 0x32, 0x32, 0x30};
+    byte[] rgetSensor2 = {0x41, 0x32, 0x34, 0x30};
+    byte[] rsetAcquisition = {0x41, 0x32, 0x35, 0x30};
+    byte[] rsetTrigger = {0x41, 0x32, 0x38, 0x30};
+    byte[] rstartSensor = {0x41, 0x32, 0x38, 0x30};
+    byte[] sensorResponse[] = {raddSensor2, rgetSensor2, rsetAcquisition, rsetTrigger, rstartSensor};*/
+    //Pads and error checking bytes
     byte pad = 0x00;
-    byte errorCheckPad[] = {0x02, 0x01};
-    byte[] sensorCommands[] = {addSensor2, getSensor2, setAcqusition, setTrigger, startSensor};
+    byte errorCheckPad[] = {0x30, 0x30};
+
     byte readText[];
 
     static Context DeviceUARTContext;
@@ -85,7 +94,7 @@ public class SignalProcessService extends Service {
     boolean uart_configured = false;
 
     /* Empty Constructor */
-    public SignalProcessService(){
+    public SignalProcessService() {
     }
 
     /*********
@@ -116,31 +125,29 @@ public class SignalProcessService extends Service {
         Thread SignalProcessThread = new Thread(r);
         SignalProcessThread.start();
     }
+
     /* Gathers 5 seconds of emg data and distributes it into low, medium and high values. After 5 minutes, the distribution value is saved and the process restarts*/
-    public double[] amplitudeDistribution(double lowthresh, double highthresh){
+    public double[] amplitudeDistribution(double lowthresh, double highthresh) {
 
         double low = 0, medium = 0, high = 0;
 
 
-        for (int i = 0; i < Array.getLength(emg); i++){
-                if (emg[i] >= lowthresh && emg[i] <= highthresh){
-                    medium++;           //Each sample detected = 1/1000th of a second spent in the detected quadrant
-                }
-                else if ( emg[i] >= highthresh){
-                    high++;
-                }
-                else {
-                    low++;
-                }
+        for (int i = 0; i < Array.getLength(emg); i++) {
+            if (emg[i] >= lowthresh && emg[i] <= highthresh) {
+                medium++;           //Each sample detected = 1/1000th of a second spent in the detected quadrant
+            } else if (emg[i] >= highthresh) {
+                high++;
+            } else {
+                low++;
+            }
         }
         /*Weight the quadrants accordingly and calculate the time in each; since we take every 5th sample, multiply by time factor of .005 for seconds # of seconds
         if we haven't reached 5 minutes, keep summing the number of seconds spent*/
         if (readCounter > 0 && readCounter % 60 != 0) {
-            distribution[0] = distribution[0] +  low * .001;
+            distribution[0] = distribution[0] + low * .001;
             distribution[1] = distribution[1] + medium * .001;
             distribution[2] = distribution[2] + high * .001;         // As 1 is the weighting of high
-        }
-        else {
+        } else {
             distribution[0] = low * .001;         //1/3*.005 = .001666
             distribution[1] = medium * .001;
             distribution[2] = high * .001;          // As 1 is the weighting of high
@@ -170,31 +177,36 @@ public class SignalProcessService extends Service {
         }
         //Calculate tension based on results of integration compared with a standard metric set by calibration
         //tensionArea = 0.015*5000 samples
-        normalizedTension = (float) ((Iarea/.15)*100);
+        normalizedTension = (float) ((Iarea / .15) * 100);
         sensorFinish = true;                                             //Flag to let pieFragment know when processing is finished.
         Log.d(TAG, "Iarea: " + Iarea + " NormalizedTension: " + normalizedTension);
     }
 
 
     /*******************************
-     *  Getters and Setters
+     * Getters and Setters
      ***********************/
-    public float getNormalizedTension(){
+    public float getNormalizedTension() {
         return Math.abs(normalizedTension);
     }
-    public float[] getEmg(){
+
+    public float[] getEmg() {
         return emg;
     }
-    public float getIarea(){
+
+    public float getIarea() {
         return Iarea;
     }
-    public double[] getForceDistribution(){
+
+    public double[] getForceDistribution() {
         return forceDistribution;
     }
-    public int getReadCounter(){
+
+    public int getReadCounter() {
         return readCounter;
     }
-    public byte[] getSensorCommands(int i){
+
+    public byte[] getSensorCommands(int i) {
         return sensorCommands[i];
     }
 
@@ -219,7 +231,7 @@ public class SignalProcessService extends Service {
                     //We extract the rms signal value for the envelope
                     signal[i] = (float) ((signal[i] + h[j] * signal[(i + 1) - j]) / Math.sqrt(2));
 
-            }
+                }
             }
         }
         return signal;
@@ -235,15 +247,15 @@ public class SignalProcessService extends Service {
         try {
             InputStream is = this.getResources().openRawResource(R.raw.lefttrap);
             reader = new BufferedReader(new InputStreamReader(is));
-            reader.skip(readCounter*getTime*1000);
+            reader.skip(readCounter * getTime * 1000);
             String str = reader.readLine();
             while (str != null) {
-                for (int i = (readCounter * getTime * 1000); i < ((readCounter*getTime*1000) + getTime * 1000); i++) {
+                for (int i = (readCounter * getTime * 1000); i < ((readCounter * getTime * 1000) + getTime * 1000); i++) {
                     mStrings.add(str);
                     str = reader.readLine();
                 }
             }
-            Log.i(TAG, "Read the Dummy Data " + "i begins at: " + (readCounter* getTime* 1000) + " and ends at " + ((readCounter*getTime*1000) + getTime * 1000));
+            Log.i(TAG, "Read the Dummy Data " + "i begins at: " + (readCounter * getTime * 1000) + " and ends at " + ((readCounter * getTime * 1000) + getTime * 1000));
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -283,141 +295,165 @@ public class SignalProcessService extends Service {
         Log.i(TAG, "onDestroy method but only this log runs");
     }
 
-    /**********************     FTD2XX Functions    ****************************************************/
+    /**********************
+     * FTD2XX Functions
+     ****************************************************/
 
-
-    public void notifyUSBDeviceAttach(Context parentContext , D2xxManager ftdid2xxContext)
-    {
+    public void notifyUSBDeviceAttach(Context parentContext, D2xxManager ftdid2xxContext) {
         DeviceUARTContext = parentContext;
         ftdid2xx = ftdid2xxContext;
 
         DevCount = 0;
+        int successCount = 0;
         createDeviceList();
-        if(DevCount > 0)
-        {
+        if (DevCount > 0) {
             try {
+                /****Procedure for connecting sensor 2 sends all of the byteCommands to the sendMessage function ***/
                 connectFunction();
                 SetConfig(baudRate, dataBit, stopBit, parity, flowControl);
                 EnableRead();
-                /****Procedure for connecting sensor 2 sends all of the byteCommands to the sendMessage function ***/
-                //for (int i = 0; i < Array.getLength(sensorCommands); i++){
-                Toast.makeText(DeviceUARTContext,"Command: " + sensorCommands[0] ,Toast.LENGTH_SHORT).show();
-                SendMessage(sensorCommands[0]);
-                /*while (readData != sensorSuccess[0]) {
-                    //try again or offer suggestions
-                }*/
-                SendMessage(sensorCommands[1]);
-                SendMessage(sensorCommands[2]);
-                SendMessage(sensorCommands[3]);
-                SendMessage(sensorCommands[4]);
-                //}
-            }catch (Exception e){
-                Toast.makeText(DeviceUARTContext,"connection failure to sensor, you dingus",Toast.LENGTH_SHORT).show();
+                for (int i = 0; i < Array.getLength(sensorCommands); i++) {
+
+                    Toast.makeText(DeviceUARTContext, "Sending Command: " + sensorCommands[i], Toast.LENGTH_LONG).show();
+                    //Clear the acknowledge bit on the readData before sending a new command
+                    readData[3] = 0x00;
+                    SendMessage(sensorCommands[i]);
+                    if (readData[3] != 0) {
+                        Toast.makeText(DeviceUARTContext, "Trying once more: ack command = " + readData[3], Toast.LENGTH_SHORT).show();
+                        if (readData[3] == 0){
+                            successCount++;
+                            Toast.makeText(DeviceUARTContext, "Success", Toast.LENGTH_SHORT).show();
+                        }
+                        else{
+                            Toast.makeText(DeviceUARTContext, "No luck :(, try restarting the app!", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                    else if (readData[3] == 0){
+                        successCount++;
+                        Toast.makeText(DeviceUARTContext, "Success", Toast.LENGTH_SHORT).show();
+                    }
+
+                }
+                if (successCount == 5){
+                    Toast.makeText(DeviceUARTContext, "Sensor should now be fully connected", Toast.LENGTH_SHORT).show();
+                }
+            } catch (Exception e) {
+                Toast.makeText(DeviceUARTContext, "connection failure to sensor, you dingus", Toast.LENGTH_SHORT).show();
             }
         }
     }
 
-    public void notifyUSBDeviceDetach()
-    {
+    public void SendMessage(final byte[] byteCode) {
+        Runnable R = new Runnable() {
+            @Override
+            public void run() {
+                if (ftDev.isOpen() == false) {
+                    Log.e("j2xx", "SendMessage: device not open");
+                    Toast.makeText(DeviceUARTContext, "SendMessage: device not open", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                ftDev.setLatencyTimer((byte) 16);
+                ftDev.purge((byte) (D2xxManager.FT_PURGE_TX | D2xxManager.FT_PURGE_RX));
+                byte[] OutData = byteCode;      //byteCode is the current request code in a byte array
+
+                if (Array.getLength(byteCode) != 16) {
+                    for (int i = Array.getLength(byteCode); i < 16; i++) {
+                        if (i < 14 && i > 4) {
+                            OutData[i] = pad;
+                            //ftDev.write(pad, Array.getLength(pad));
+                        } else if (i >= 14){
+                            //ftDev.write(errorCheckPad, Array.getLength(errorCheckPad));
+                            OutData[i] = errorCheckPad[i - 14];
+                        }
+                    }
+                }
+                //Toast.makeText(DeviceUARTContext, "Length of Command" + Array.getLength(OutData), Toast.LENGTH_SHORT).show();
+                ftDev.write(OutData, Array.getLength(OutData));
+            }
+        };
+        Thread sendmsg = new Thread(R);
+        sendmsg.run();
+
+    }
+
+    public void notifyUSBDeviceDetach() {
         disconnectFunction();
     }
 
-    public void createDeviceList()
-    {
+    public void createDeviceList() {
         int tempDevCount = ftdid2xx.createDeviceInfoList(DeviceUARTContext);
-        Toast.makeText(DeviceUARTContext,"Devices found: " + tempDevCount ,Toast.LENGTH_SHORT).show();
-        if (tempDevCount > 0)
-        {
-            if( DevCount != tempDevCount )
-            {
+        Toast.makeText(DeviceUARTContext, "Devices found: " + tempDevCount, Toast.LENGTH_SHORT).show();
+        if (tempDevCount > 0) {
+            if (DevCount != tempDevCount) {
                 DevCount = tempDevCount;
                 //updatePortNumberSelector();
             }
-        }
-        else
-        {
+        } else {
             DevCount = -1;
             currentIndex = -1;
         }
     }
-    public void disconnectFunction()
-    {
+
+    public void disconnectFunction() {
         DevCount = -1;
         currentIndex = -1;
         bReadThreadGoing = false;
         try {
             Thread.sleep(50);
-        }
-        catch (InterruptedException e) {
+        } catch (InterruptedException e) {
             e.printStackTrace();
         }
 
-        if(ftDev != null)
-        {
-            synchronized(ftDev)
-            {
-                if( true == ftDev.isOpen())
-                {
+        if (ftDev != null) {
+            synchronized (ftDev) {
+                if (true == ftDev.isOpen()) {
                     ftDev.close();
                 }
             }
         }
     }
 
-    public void connectFunction()
-    {
+    public void connectFunction() {
         int tmpProtNumber = openIndex + 1;
 
-        if( currentIndex != openIndex )
-        {
-            if(null == ftDev)
-            {
+        if (currentIndex != openIndex) {
+            if (null == ftDev) {
                 ftDev = ftdid2xx.openByIndex(DeviceUARTContext, openIndex);
-            }
-            else
-            {
-                synchronized(ftDev)
-                {
-                    Toast.makeText(DeviceUARTContext,"Attempting to open port",Toast.LENGTH_SHORT).show();
+            } else {
+                synchronized (ftDev) {
+                    Toast.makeText(DeviceUARTContext, "Attempting to open port", Toast.LENGTH_SHORT).show();
                     ftDev = ftdid2xx.openByIndex(DeviceUARTContext, openIndex);
                 }
             }
             uart_configured = false;
-        }
-        else
-        {
-            Toast.makeText(DeviceUARTContext,"Device port " + tmpProtNumber + " is already opened",Toast.LENGTH_LONG).show();
+        } else {
+            Toast.makeText(DeviceUARTContext, "Device port " + tmpProtNumber + " is already opened", Toast.LENGTH_LONG).show();
             return;
         }
 
-        if(ftDev == null)
-        {
-            Toast.makeText(DeviceUARTContext,"open device port("+tmpProtNumber+") NG, ftDev == null", Toast.LENGTH_LONG).show();
+        if (ftDev == null) {
+            Toast.makeText(DeviceUARTContext, "open device port(" + tmpProtNumber + ") NG, ftDev == null", Toast.LENGTH_LONG).show();
             return;
         }
 
-        if (true == ftDev.isOpen())
-        {
+        if (true == ftDev.isOpen()) {
             currentIndex = openIndex;
             Toast.makeText(DeviceUARTContext, "open device port(" + tmpProtNumber + ") OK", Toast.LENGTH_SHORT).show();
 
-            if(false == bReadThreadGoing)
-            {
+            if (false == bReadThreadGoing) {
                 read_thread = new readThread(handler);
                 read_thread.start();
                 bReadThreadGoing = true;
-                Toast.makeText(DeviceUARTContext, "Reading USB Responses", Toast.LENGTH_SHORT).show();
+                //Toast.makeText(DeviceUARTContext, "Reading USB Responses", Toast.LENGTH_SHORT).show();
 
             }
-        }
-        else
-        {
+        } else {
             Toast.makeText(DeviceUARTContext, "open device port(" + tmpProtNumber + ") NG", Toast.LENGTH_LONG).show();
             //Toast.makeText(DeviceUARTContext, "Need to get permission!", Toast.LENGTH_SHORT).show();
         }
     }
-    public void SetConfig(int baud, byte dataBits, byte stopBits, byte parity, byte flowControl)
-    {
+
+    public void SetConfig(int baud, byte dataBits, byte stopBits, byte parity, byte flowControl) {
         if (ftDev.isOpen() == false) {
             //Log.e("j2xx", "SetConfig: device not open");
             Toast.makeText(DeviceUARTContext, "j2xx, Device not open", Toast.LENGTH_SHORT).show();
@@ -503,47 +539,17 @@ public class SignalProcessService extends Service {
         uart_configured = true;
         Toast.makeText(DeviceUARTContext, "Config done", Toast.LENGTH_SHORT).show();
     }
-    public void SendMessage(final byte[] byteCode) {
-        Runnable R = new Runnable() {
-            @Override
-            public void run() {
-                if (ftDev.isOpen() == false) {
-                    Log.e("j2xx", "SendMessage: device not open");
-                    Toast.makeText(DeviceUARTContext, "SendMessage: device not open", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                ftDev.setLatencyTimer((byte) 16);
-                ftDev.purge((byte) (D2xxManager.FT_PURGE_TX | D2xxManager.FT_PURGE_RX));
-                byte[] OutData = byteCode;      //byteCode is the current request code in a byte array
 
-                if (Array.getLength(byteCode) != 16) {
-                    for (int i = Array.getLength(byteCode); i < 16; i++) {
-                        if (i < 14) {
-                            OutData[i] = pad;
-                            //ftDev.write(pad, Array.getLength(pad));
-                        }
-                        else{
-                            //ftDev.write(errorCheckPad, Array.getLength(errorCheckPad));
-                            OutData[i] = errorCheckPad[i-15];
-                        }
-                    }
-                }
-                Toast.makeText(DeviceUARTContext, "Length of Command" + Array.getLength(OutData), Toast.LENGTH_SHORT).show();
-                ftDev.write(OutData, Array.getLength(OutData));
-            }
-        };
-        Thread sendmsg = new Thread(R);
-        sendmsg.run();
 
-    }
-    public void EnableRead (){
-        iEnableReadFlag = (iEnableReadFlag + 1)%2;
+
+    public void EnableRead() {
+        iEnableReadFlag = (iEnableReadFlag + 1) % 2;
 
         //if(iEnableReadFlag == 1) {
-            ftDev.purge((byte) (D2xxManager.FT_PURGE_TX));
-            ftDev.restartInTask();
-            //readEnButton.setText("Read Enabled");
-            Toast.makeText(DeviceUARTContext, "Read Enabled", Toast.LENGTH_SHORT).show();
+        ftDev.purge((byte) (D2xxManager.FT_PURGE_TX));
+        ftDev.restartInTask();
+        //readEnButton.setText("Read Enabled");
+        Toast.makeText(DeviceUARTContext, "Read Enabled", Toast.LENGTH_SHORT).show();
         /*}
         else{
             ftDev.stopInTask();
@@ -551,51 +557,55 @@ public class SignalProcessService extends Service {
             Toast.makeText(DeviceUARTContext, "Read Disabled", Toast.LENGTH_SHORT).show();
         }*/
     }
-    final Handler handler =  new Handler()
-    {
+
+    final Handler handler = new Handler() {
         @Override
-        public void handleMessage(Message msg)
-        {
-            if(iavailable > 0)
-            {
-                readText.equals(String.copyValueOf(readDataToText, 0, iavailable));
+        public void handleMessage(Message msg) {
+            if (iavailable > 0) {
+                if (readDataToText != null) {readText.equals(String.copyValueOf(readDataToText, 0, iavailable));}
             }
         }
     };
 
-    private class readThread  extends Thread
-    {
+    private class readThread extends Thread {
         Handler mHandler;
 
-        readThread(Handler h){
+        readThread(Handler h) {
             mHandler = h;
             this.setPriority(Thread.MIN_PRIORITY);
         }
 
         @Override
-        public void run()
-        {
+        public void run() {
             int i;
 
-            while(true == bReadThreadGoing)
-            {
+            while (true == bReadThreadGoing) {
                 try {
                     Thread.sleep(5);
                 } catch (InterruptedException e) {
 
                 }
 
-                synchronized(ftDev)
-                {
+                synchronized (ftDev) {
                     iavailable = ftDev.getQueueStatus();
                     if (iavailable > 0) {
 
-                        if(iavailable > readLength){
+                        if (iavailable > readLength) {
                             iavailable = readLength;
                         }
                         ftDev.read(readData, iavailable);
-                        for (i = 0; i < iavailable; i++) {
-                            readDataToText[i] = (char) readData[i];
+                        if (readData[0] == 'A') {       //If readData[0] = 'A' it is a response packet
+                            for (i = 0; i < iavailable; i++) {
+                                readDataToText[i] = (char) readData[i];
+                            }
+                        }
+                        else if (readData[0] == 'D'){       //If readData[0] = 'D' it is a data packet
+                            //TODO: If read data is a data packet, we must convert the data packets from bytes to amplitudes
+                            /***Fs = 1KHz, Default Size of data packets = 21 bytes, Number of samples = 5 or 6 Check the 3rd byte for this
+                            Bytes 5-8 contain the index of the first sample up to 32 bit number, then they wrap around to 0 again, keep a counter
+                            Byte 9  contains the battery level from 0-4, check this to warn user of low battery
+                            When receiving data packets, you receive 5 LSB 3 pad in a byte, then 1 pad, 7 MSB in the next. Add these to get the amplitude
+                            Zero level is 0x3FFC or 16380, Max Amplitude = 0x7FF8 or 32760, Min amplitude = 0x0000*******/
                         }
                         Message msg = mHandler.obtainMessage();
                         mHandler.sendMessage(msg);

@@ -134,10 +134,11 @@ public class PieChartFragment extends Fragment implements View.OnClickListener, 
                                 pieService.notifyUSBDeviceAttach(getContext(), ftD2xx);
                             }
                             view.setTag(0);
-                            e.setText("Click again to receive response", TextView.BufferType.EDITABLE);
+                            e.setText("Click again to disconnect", TextView.BufferType.EDITABLE);
                         } else {
                             // pieService.notifyUSBDeviceDetach();
                             e.setText("RS232 response: " + pieService.readDataToText);
+                            pieService.notifyUSBDeviceDetach();
                             view.setTag(1);
                         }
                 }

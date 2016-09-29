@@ -1,3 +1,104 @@
 <?xml version="1.0" encoding="utf-8"?>
-<items version="2" />
+<items version="2" >
 
+    <item
+        is-multidex="true"
+        jar="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\build\intermediates\exploded-aar\com.android.support\animated-vector-drawable\24.1.1\jars\classes.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="24.0.0"
+        sha1="c936c1bd42f0c018c18920c7bec619ef056b24f8">
+        <dex dex="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\build\intermediates\transforms\dex\debug\folders\1000\10\com.android.support-animated-vector-drawable-24.1.1_160b3aa33fd436158c0b5b477a49b4ecb1158a68\classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\build\intermediates\exploded-aar\com.android.support\support-v4\24.1.1\jars\classes.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="24.0.0"
+        sha1="6d7d803871e3203465f71a163e7af104f807b446">
+        <dex dex="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\build\intermediates\transforms\dex\debug\folders\1000\10\com.android.support-support-v4-24.1.1_4285c952be914b63bf017465ff466977f1ed8627\classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\build\intermediates\incremental-runtime-classes\debug\instant-run.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="24.0.0"
+        sha1="03c2c930944c759e733497633fa216d4af203912">
+        <dex dex="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\build\intermediates\transforms\dex\debug\folders\1000\10\instant-run_14abe3155e35819847a7d286d6c549f57683cda6\classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\build\intermediates\exploded-aar\com.android.support\appcompat-v7\24.1.1\jars\classes.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="24.0.0"
+        sha1="1256c10604bb098490eab070d76754ac5ceab35c">
+        <dex dex="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\build\intermediates\transforms\dex\debug\folders\1000\10\com.android.support-appcompat-v7-24.1.1_0ab4cf1256c29e0add3c32bf4c28142e37fd4b7e\classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\libs\d2xx.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="24.0.0"
+        sha1="d23d4b59279cd49f064bb5abcb8795b91ec6fd25">
+        <dex dex="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\build\intermediates\transforms\dex\debug\folders\1000\2\d2xx_eef1c814f41111134ec45723e8318459be206286\classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\libs\dsp-collection.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="24.0.0"
+        sha1="acb069ea7f39b706817f301931fbfebc20b72a7a">
+        <dex dex="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\build\intermediates\transforms\dex\debug\folders\1000\2\dsp-collection_33672abeef71c3d562d8128612cf0618604480bd\classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="C:\Users\Wee Wilfred\AppData\Local\Android\Sdk\extras\android\m2repository\com\android\support\support-annotations\24.1.1\support-annotations-24.1.1.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="24.0.0"
+        sha1="3af19f153122737b372622fa6c81dd11a1c6b999">
+        <dex dex="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\build\intermediates\transforms\dex\debug\folders\1000\10\support-annotations-24.1.1_8ae5029e8befe9d62bdcd3d438f79fb5b103a967\classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="C:\Users\Wee Wilfred\.gradle\caches\modules-2\files-2.1\com.github.PhilJay\MPAndroidChart\v3.0.0-beta1\54d65d51b5ebec588a19b2384efb6395b5bf5b18\MPAndroidChart-v3.0.0-beta1.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="24.0.0"
+        sha1="54d65d51b5ebec588a19b2384efb6395b5bf5b18">
+        <dex dex="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\build\intermediates\transforms\dex\debug\folders\1000\10\MPAndroidChart-v3.0.0-beta1_2fc04120e605ae4fd181a2ca0fd07e29c36ef456\classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\build\intermediates\exploded-aar\com.android.support\support-vector-drawable\24.1.1\jars\classes.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="24.0.0"
+        sha1="f62e763609f65e47dc6c498760a4accf02776788">
+        <dex dex="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\build\intermediates\transforms\dex\debug\folders\1000\10\com.android.support-support-vector-drawable-24.1.1_4fb199070dbaecb36ad5f5a5bb8678acfba35400\classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\build\intermediates\incremental-classes\debug\instant-run-bootstrap.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="24.0.0"
+        sha1="172f8f104e767e6555abd7eb4e4e75408f6cbd63">
+        <dex dex="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\build\intermediates\transforms\dex\debug\folders\1000\10\instant-run-bootstrap_2426fab457610d2e93585357660be33b78803a06\classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\build\intermediates\exploded-aar\com.android.support\support-v4\24.1.1\jars\libs\internal_impl-24.1.1.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="24.0.0"
+        sha1="f78c2f395cb096f9dc1dc07e729922b8fcd3c4f5">
+        <dex dex="C:\Users\Wee Wilfred\Documents\AndroidProjects\Freemg\app\build\intermediates\transforms\dex\debug\folders\1000\10\internal_impl-24.1.1_87a52471d7ff303fb8d21d4f560aa9813f88a264\classes.dex" />
+    </item>
+
+</items>
