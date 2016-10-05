@@ -2,6 +2,8 @@ package com.example.weewilfred.freemg;
 
 import android.animation.ArgbEvaluator;
 import android.animation.ObjectAnimator;
+import android.content.DialogInterface;
+import android.content.res.Resources;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.hardware.usb.UsbManager;
@@ -9,17 +11,22 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
+import android.support.v7.app.AlertDialog;
+import android.text.Editable;
 import android.text.SpannableString;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.RelativeSizeSpan;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.RelativeLayout;
 
+import java.io.File;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
 
@@ -55,16 +62,22 @@ import static java.lang.Thread.sleep;
 public class PieChartFragment extends Fragment implements View.OnClickListener, OnChartValueSelectedListener {
 
     private static final String TAG = "PieChartFragment";
+
+    //Service variables
     SignalProcessService pieService;
     boolean isBound = false;
     private static float[] emg = new float[4999];
     private static double[] forceDistribution = new double[3];
-    Button b;
-    TextView e;
-    private PieChart mChart;
-    int commandIndex = 0;
-
     public static D2xxManager ftD2xx = null;
+    //Button Variables
+    Button b;
+    int commandIndex = 0;
+    //Debug TextView Variables
+    TextView e;
+    //AlertDialog for naming test files Variables
+    String YourEditTextValue;
+    //PieChart Object
+    private PieChart mChart;
 
     public PieChartFragment() {
         //Empty Constructor
@@ -94,7 +107,7 @@ public class PieChartFragment extends Fragment implements View.OnClickListener, 
 
         //Piechart centre circle
         mChart.setHoleColor(5000); //TODO: Change color of centre hole color to scale from blue to red as activity increases and decreases
-        mChart.setHoleRadius(30f); //Radius of Pie Chart Center Hole in percent of maximum radius
+        mChart.setHoleRadius(31.45f); //Radius of Pie Chart Center Hole in percent of maximum radius
         mChart.setTransparentCircleRadius(35f);
         mChart.setTransparentCircleColor(50);
         mChart.setBackgroundColor(1);
@@ -109,41 +122,82 @@ public class PieChartFragment extends Fragment implements View.OnClickListener, 
         b.setOnClickListener(this);
         b.setTag(1);
 
+        //Setup for standardised display pixels
+        Resources r = getResources();
+        final int px = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 350, r.getDisplayMetrics());
+
         //Set up for debug text
         e = (TextView) pieChartView.findViewById(R.id.debugText);
         e.setEnabled(true);
         e.setClickable(true);
         e.setTag(1);
-        e.setText("No commands yet",TextView.BufferType.EDITABLE );
+        e.setText("No commands yet", TextView.BufferType.EDITABLE);
+        /****************************************** A lot can happen when clicking *****************************************/
         e.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                switch (view.getId()){
+                switch (view.getId()) {
                     case R.id.debugText:
                         final int status2 = (Integer) view.getTag();
-                        if (status2 == 1){
-                            Toast.makeText(getContext(), "Attempting to connect sensor", Toast.LENGTH_SHORT).show();
+                        if (status2 == 1) {
                             e.setText("Connecting Sensor", TextView.BufferType.EDITABLE);
-                            if (commandIndex == 0) {
+                            if (commandIndex == 0) {        //If this is the first click, set the f2td2xx context
                                 try {
                                     ftD2xx = D2xxManager.getInstance(getContext());
                                 } catch (D2xxManager.D2xxException ex) {
                                     ex.printStackTrace();
                                 }
                                 commandIndex++;
-                                pieService.notifyUSBDeviceAttach(getContext(), ftD2xx);
                             }
+                            //Build an alert dialog to get the session name
+                            AlertDialog.Builder alert = new AlertDialog.Builder(getContext(), R.style.AppTheme);
+
+                            final EditText edittext = new EditText(getContext());
+                            alert.setMessage("New Session");
+                            alert.setTitle("Enter a name for your test!");
+                            alert.setView(edittext);
+
+                            alert.setPositiveButton("Start Muscular Test", new DialogInterface.OnClickListener() {
+                                public void onClick(DialogInterface dialog, int whichButton) {
+                                    YourEditTextValue = edittext.getText().toString();
+                                    //Configure the sensor and begin the acquisition
+                                    pieService.notifyUSBDeviceAttach(getContext(), ftD2xx);
+                                    //Create a new file for the EMG traces
+                                    File F = (pieService.generateFileOnSD(YourEditTextValue));
+                                    //Set the current EMG trace as the created file
+                                    pieService.setCurrentEMGTrace(F);
+                                }
+                            });
+
+                            alert.setNegativeButton("I'm not ready", new DialogInterface.OnClickListener() {
+                                public void onClick(DialogInterface dialog, int whichButton) {
+                                    pieService.notifyUSBDeviceDetach();
+                                }
+                            });
+
+                            WindowManager.LayoutParams lp = new WindowManager.LayoutParams();
+                            AlertDialog alertDialog = alert.create();
+                            lp.copyFrom(alertDialog.getWindow().getAttributes());
+                            lp.width = px;
+                            lp.height = px;
+                            lp.x = 0;
+                            lp.y = -100;
+                            alertDialog.getWindow().setAttributes(lp);
+                            //Show the dialog once all the values are built
+                            alertDialog.show();
+
                             view.setTag(0);
                             e.setText("Click again to disconnect", TextView.BufferType.EDITABLE);
                         } else {
-                            // pieService.notifyUSBDeviceDetach();
                             e.setText("RS232 response: " + pieService.readDataToText);
                             pieService.notifyUSBDeviceDetach();
+                            commandIndex--;
                             view.setTag(1);
                         }
                 }
             }
         });
+        /*************************************** The clicking is over, return the completed view *******************************/
         return pieChartView;
     }
 
@@ -156,8 +210,8 @@ public class PieChartFragment extends Fragment implements View.OnClickListener, 
 
 
     private SpannableString generateCenterText() {
-        SpannableString s = new SpannableString("Click to Connect Sensor");
-        s.setSpan(new RelativeSizeSpan(2f), 0, 23, 0);
+        SpannableString s = new SpannableString("EMG Spot");
+        s.setSpan(new RelativeSizeSpan(2f), 0, 8, 0);
         s.setSpan(new ForegroundColorSpan(Color.BLACK), 8, s.length(), 0);
         return s;
     }
@@ -177,9 +231,10 @@ public class PieChartFragment extends Fragment implements View.OnClickListener, 
         Thread pollService = new Thread(r);
         pollService.start();
     }
+
     /*******************
      * use this function to receive data from the sensorProcessService *
-    **************************************/
+     **************************************/
     public void getSensorData() {
 
         pieService.processEMG();
@@ -190,6 +245,7 @@ public class PieChartFragment extends Fragment implements View.OnClickListener, 
 
     /******************
      * Handle Clicks
+     *
      * @param v - the view object that was clicked
      ****************************/
     @Override

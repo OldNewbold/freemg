@@ -4,6 +4,7 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Binder;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
@@ -11,11 +12,18 @@ import android.util.Log;
 import android.widget.Toast;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.lang.reflect.Array;
+import java.nio.ByteBuffer;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 
@@ -53,23 +61,17 @@ public class SignalProcessService extends Service {
     byte setTrigger[] = {0x52, 0x30, 0x38, 0x31, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     byte startSensor[] = {0x52, 0x32, 0x39, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     byte[] sensorCommands[] = {addSensor2, getSensor2, setAcquisition, setTrigger, startSensor};
-    //Response Commands
-    /*byte[] raddSensor2 = {0x41, 0x32, 0x32, 0x30};
-    byte[] rgetSensor2 = {0x41, 0x32, 0x34, 0x30};
-    byte[] rsetAcquisition = {0x41, 0x32, 0x35, 0x30};
-    byte[] rsetTrigger = {0x41, 0x32, 0x38, 0x30};
-    byte[] rstartSensor = {0x41, 0x32, 0x38, 0x30};
-    byte[] sensorResponse[] = {raddSensor2, rgetSensor2, rsetAcquisition, rsetTrigger, rstartSensor};*/
+
     //Pads and error checking bytes
     byte pad = 0x00;
     byte errorCheckPad[] = {0x30, 0x30};
-
     byte readText[];
+    File currentEMGTrace = null;
 
     static Context DeviceUARTContext;
     D2xxManager ftdid2xx;
     FT_Device ftDev = null;
-    int DevCount = -1;
+    int devCount = -1;
     int currentIndex = -1;
     int openIndex = 0;
 
@@ -209,6 +211,9 @@ public class SignalProcessService extends Service {
     public byte[] getSensorCommands(int i) {
         return sensorCommands[i];
     }
+    public void setCurrentEMGTrace(File f){
+        currentEMGTrace = f;
+    }
 
 
     /***********************************
@@ -302,11 +307,11 @@ public class SignalProcessService extends Service {
     public void notifyUSBDeviceAttach(Context parentContext, D2xxManager ftdid2xxContext) {
         DeviceUARTContext = parentContext;
         ftdid2xx = ftdid2xxContext;
-
-        DevCount = 0;
+        devCount = 0;
         int successCount = 0;
+
         createDeviceList();
-        if (DevCount > 0) {
+        if (devCount > 0) {
             try {
                 /****Procedure for connecting sensor 2 sends all of the byteCommands to the sendMessage function ***/
                 connectFunction();
@@ -315,32 +320,34 @@ public class SignalProcessService extends Service {
                 for (int i = 0; i < Array.getLength(sensorCommands); i++) {
 
                     Toast.makeText(DeviceUARTContext, "Sending Command: " + sensorCommands[i], Toast.LENGTH_LONG).show();
-                    //Clear the acknowledge bit on the readData before sending a new command
-                    readData[3] = 0x00;
-                    SendMessage(sensorCommands[i]);
-                    if (readData[3] != 0) {
+                    readData[3] = (byte) 0x00;                  //Clear the acknowledge bit on the readData before sending a new command
+                    SendMessage(sensorCommands[i]);             //Send Command
+                    if (readData[3] != 0) {                     //Check Acknowledgement and success of command
                         Toast.makeText(DeviceUARTContext, "Trying once more: ack command = " + readData[3], Toast.LENGTH_SHORT).show();
-                        if (readData[3] == 0){
+                        if (readData[3] == 0) {
                             successCount++;
                             Toast.makeText(DeviceUARTContext, "Success", Toast.LENGTH_SHORT).show();
+                        } else {
+                            Toast.makeText(DeviceUARTContext, "Connection did not work, try restarting the app and replugging the usb device", Toast.LENGTH_SHORT).show();
+                            break;
                         }
-                        else{
-                            Toast.makeText(DeviceUARTContext, "No luck :(, try restarting the app!", Toast.LENGTH_SHORT).show();
-                        }
-                    }
-                    else if (readData[3] == 0){
+                    } else {
                         successCount++;
                         Toast.makeText(DeviceUARTContext, "Success", Toast.LENGTH_SHORT).show();
                     }
 
                 }
-                if (successCount == 5){
+                if (successCount == 5) {
                     Toast.makeText(DeviceUARTContext, "Sensor should now be fully connected", Toast.LENGTH_SHORT).show();
                 }
             } catch (Exception e) {
-                Toast.makeText(DeviceUARTContext, "connection failure to sensor, you dingus", Toast.LENGTH_SHORT).show();
+                Toast.makeText(DeviceUARTContext, "Connection did not work, try restarting the app!", Toast.LENGTH_SHORT).show();
             }
         }
+    }
+
+    public void notifyUSBDeviceDetach() {
+        disconnectFunction();
     }
 
     public void SendMessage(final byte[] byteCode) {
@@ -361,13 +368,12 @@ public class SignalProcessService extends Service {
                         if (i < 14 && i > 4) {
                             OutData[i] = pad;
                             //ftDev.write(pad, Array.getLength(pad));
-                        } else if (i >= 14){
+                        } else if (i >= 14) {
                             //ftDev.write(errorCheckPad, Array.getLength(errorCheckPad));
                             OutData[i] = errorCheckPad[i - 14];
                         }
                     }
                 }
-                //Toast.makeText(DeviceUARTContext, "Length of Command" + Array.getLength(OutData), Toast.LENGTH_SHORT).show();
                 ftDev.write(OutData, Array.getLength(OutData));
             }
         };
@@ -376,26 +382,24 @@ public class SignalProcessService extends Service {
 
     }
 
-    public void notifyUSBDeviceDetach() {
-        disconnectFunction();
-    }
+
 
     public void createDeviceList() {
         int tempDevCount = ftdid2xx.createDeviceInfoList(DeviceUARTContext);
         Toast.makeText(DeviceUARTContext, "Devices found: " + tempDevCount, Toast.LENGTH_SHORT).show();
         if (tempDevCount > 0) {
-            if (DevCount != tempDevCount) {
-                DevCount = tempDevCount;
+            if (devCount != tempDevCount) {
+                devCount = tempDevCount;
                 //updatePortNumberSelector();
             }
         } else {
-            DevCount = -1;
+            devCount = -1;
             currentIndex = -1;
         }
     }
 
     public void disconnectFunction() {
-        DevCount = -1;
+        devCount = -1;
         currentIndex = -1;
         bReadThreadGoing = false;
         try {
@@ -408,6 +412,7 @@ public class SignalProcessService extends Service {
             synchronized (ftDev) {
                 if (true == ftDev.isOpen()) {
                     ftDev.close();
+                    Toast.makeText(DeviceUARTContext, "Test Saved in" + currentEMGTrace.getAbsolutePath(), Toast.LENGTH_LONG).show();
                 }
             }
         }
@@ -541,14 +546,13 @@ public class SignalProcessService extends Service {
     }
 
 
-
     public void EnableRead() {
         iEnableReadFlag = (iEnableReadFlag + 1) % 2;
 
         //if(iEnableReadFlag == 1) {
         ftDev.purge((byte) (D2xxManager.FT_PURGE_TX));
         ftDev.restartInTask();
-        //readEnButton.setText("Read Enabled");
+
         Toast.makeText(DeviceUARTContext, "Read Enabled", Toast.LENGTH_SHORT).show();
         /*}
         else{
@@ -562,13 +566,20 @@ public class SignalProcessService extends Service {
         @Override
         public void handleMessage(Message msg) {
             if (iavailable > 0) {
-                if (readDataToText != null) {readText.equals(String.copyValueOf(readDataToText, 0, iavailable));}
+                synchronized (handler) {
+                    if (readDataToText != null) {
+                        readText.equals(String.copyValueOf(readDataToText, 0, iavailable));
+                    }
+                }
+
             }
         }
     };
 
     private class readThread extends Thread {
         Handler mHandler;
+
+
 
         readThread(Handler h) {
             mHandler = h;
@@ -581,9 +592,9 @@ public class SignalProcessService extends Service {
 
             while (true == bReadThreadGoing) {
                 try {
-                    Thread.sleep(5);
+                    Thread.sleep(1);
                 } catch (InterruptedException e) {
-
+                    e.printStackTrace();
                 }
 
                 synchronized (ftDev) {
@@ -594,31 +605,110 @@ public class SignalProcessService extends Service {
                             iavailable = readLength;
                         }
                         ftDev.read(readData, iavailable);
+                        Toast.makeText(DeviceUARTContext, "readData[0] = " + readData[0], Toast.LENGTH_SHORT).show();
                         if (readData[0] == 'A') {       //If readData[0] = 'A' it is a response packet
                             for (i = 0; i < iavailable; i++) {
                                 readDataToText[i] = (char) readData[i];
                             }
-                        }
-                        else if (readData[0] == 'D'){       //If readData[0] = 'D' it is a data packet
+                            Message msg = mHandler.obtainMessage();
+                            mHandler.sendMessage(msg);
+                        } else if (readData[0] == 'D' || readData[0] == 0x44) {       //If readData[0] = 'D' it is a data packet
                             //TODO: If read data is a data packet, we must convert the data packets from bytes to amplitudes
                             /***Fs = 1KHz, Default Size of data packets = 21 bytes, Number of samples = 5 or 6 Check the 3rd byte for this
-                            Bytes 5-8 contain the index of the first sample up to 32 bit number, then they wrap around to 0 again, keep a counter
-                            Byte 9  contains the battery level from 0-4, check this to warn user of low battery
-                            When receiving data packets, you receive 5 LSB 3 pad in a byte, then 1 pad, 7 MSB in the next. Add these to get the amplitude
-                            Zero level is 0x3FFC or 16380, Max Amplitude = 0x7FF8 or 32760, Min amplitude = 0x0000*******/
+                             Bytes 5-8 contain the index of the first sample index up to 32 bit number, then they wrap around to 0 again, keep a counter
+                             Byte 9  contains the battery level from 0-4, check this to warn user of low battery
+                             When receiving data packets, you receive 5 LSB 3 pad in a byte, then 1 pad, 7 MSB in the next. Add these to get the amplitude*/
+                            boolean bool;
+                            byte LSB;
+                            byte MSB;
+                            double[] EMGamp = new double[readData[3]]; /**Zero level is 0x3FFC or 16380, Max Amplitude = 0x7FF8 or 32760, Min amplitude = 0x0000*******/
+                            int currentSample;
+                            byte[] arr = new byte[4];
+
+                            for (i = 0; i < 4; i++) {
+                                arr[i] = readData[i + 5];
+                            }
+                            //  create a byte buffer and wrap the array
+                            ByteBuffer bb = ByteBuffer.wrap(arr);
+                            currentSample = bb.getInt();
+
+                            for (int j = 0; j < readData[3]; j++) {  //Read samples per data packet (10 in front 2 behind)
+                                LSB = readData[j + j + 10];     //Gather LSB at first data byte
+                                MSB = readData[j + j + 11];     //Gather MSB at second data byte
+                                EMGamp[j] = (((LSB << 8) + (MSB & 0xff)) - 16380) * Math.pow(9.16, -8);      //Equals 1.5mV at 32760 and 0 at 16380
+                            }
+                            bool = writeFileOnSD(DeviceUARTContext, currentEMGTrace, EMGamp);
+                            if (bool == true){
+                                Log.d(TAG, "write successful" + currentSample);
+                            }
                         }
-                        Message msg = mHandler.obtainMessage();
-                        mHandler.sendMessage(msg);
                     }
                 }
             }
         }
+
     }
 
-    /**
-     * Hot plug for plug in solution
-     * This is workaround before android 4.2 . Because BroadcastReceiver can not
-     * receive ACTION_USB_DEVICE_ATTACHED broadcast
+    /***
+     *
+     * @param sFileName The filename of the CurrentEmgTrace
+     * @return Returns the file created, a toast will occur to inform you if creating the file was successful
      */
+   public File generateFileOnSD(String sFileName) {
 
+            boolean bool;
+            bool = isExternalStorageWritable();
+            Toast.makeText(DeviceUARTContext, "Is External Storage Available?" + bool, Toast.LENGTH_SHORT).show();
+
+            File file = new File(getExternalFilesDir(null), "EMGSpotFiles");
+            if (!file.exists()) {
+                bool = file.mkdirs();
+                Toast.makeText(DeviceUARTContext, "File Created?" + bool, Toast.LENGTH_SHORT).show();
+            }
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
+            String currentDateandTime = sdf.format(new Date());
+
+            File emgTraceFile = new File(file, sFileName + " @ " + currentDateandTime);      //sFileName is the name of the test
+            if (!emgTraceFile.exists()){
+                bool = emgTraceFile.mkdir();
+                Toast.makeText(DeviceUARTContext, "Test Created?" + bool, Toast.LENGTH_SHORT).show();
+            }
+
+            return emgTraceFile;
+    }
+
+    /****
+     *
+     * @param context
+     * @param emgTraceFile  The file which will be written to for this test
+     * @param EMGamp    The emg amplitudes being written (5 or 6 at a time)
+     * @return  returns true if the write was successful, or false if it wasn't :)
+     */
+    public boolean writeFileOnSD(Context context, File emgTraceFile, double[] EMGamp){
+
+        boolean bool = true;
+        try {
+            //OutputStream fo = new FileOutputStream(emgTraceFile, true);
+            //FileOutputStream fo = openFileOutput(emgTraceFile.getName(), Context.MODE_APPEND);
+            FileWriter fo = new FileWriter(emgTraceFile, true);
+            for (int j=0; j < readData[3]; j++) {
+                fo.append(String.valueOf(EMGamp[j]) + "\n");
+            }
+            fo.close();
+            Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show();
+        } catch (IOException e){
+            e.printStackTrace();
+            bool = false;
+        }
+        return bool;
+
+    }
+    /* Checks if external storage is available for read and write */
+    public boolean isExternalStorageWritable() {
+        String state = Environment.getExternalStorageState();
+        if (Environment.MEDIA_MOUNTED.equals(state)) {
+            return true;
+        }
+        return false;
+    }
 }
